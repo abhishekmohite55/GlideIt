@@ -24,8 +24,3 @@ This patch introduces highly visual subsystem clustering, selective execution hi
   * The selected "parent" node receives its unique `clusterColor` glow and border, while its direct child nodes (and all other nodes) do not receive this color styling.
   * The selected "parent" node and its direct children remain fully opaque (`1.0` opacity) to keep the execution context clear, while all other unrelated nodes dim down to `0.35`.
   * The edges exiting the parent node light up in the subsystem's vivid `clusterColor` and **start animating (flowing dots/dashes)**. All other unrelated connection lines dim to `0.1` opacity.
-
-### 3. Elastic Spacing Physics (Gravity Slider)
-* **Slider Component (`ForceSlider`):** Create a floating control panel in the canvas top-right.
-* **Control Scope:** Implement an elastic slider (`-400` to `+800`) linked to `chargeOffset`. Dragging stretches or compresses the node coordinates in real-time.
-* **Rubber-Band Spring Back:** On release, a `requestAnimationFrame` interpolation smoothly snaps the slider and the graph positions back to `0` with a premium elastic bounce, returning the codebase to its optimal balanced layout.
