@@ -357,9 +357,7 @@ body {
 }
 
 .glideit-node.node-selected {
-  border-color: var(--color-accent) !important;
-  box-shadow: 0 0 0 2px rgba(30,144,255,0.2);
-  background: var(--color-node-expanded);
+  box-shadow: 0 0 0 2px var(--color-accent), 0 0 15px rgba(30, 144, 255, 0.4);
 }
 
 .glideit-node.expanded {

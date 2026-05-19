@@ -176,12 +176,19 @@ export function applyForceLayout(nodes, edges) {
 /**
  * Convert graph-data.json nodes → React Flow node format.
  */
-export function toFlowNodes(graphNodes, selectedId = null) {
+export function toFlowNodes(graphNodes, selectedId = null, clusterColorMap = {}, onToggleExpanded = null) {
   return graphNodes.map(n => ({
     id: n.id,
     type: 'glideNode',
-    data: { ...n, selected: n.id === selectedId },
-    position: { x: 0, y: 0 }, // overwritten by physics engine
+    data: {
+      ...n,
+      selected: n.id === selectedId,
+      clusterColor: clusterColorMap[n.id] ?? null,
+      onToggleExpanded,
+    },
+    position: { x: 0, y: 0 }, // overwritten by layout engine
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
     draggable: true,
   }))
 }
@@ -189,7 +196,7 @@ export function toFlowNodes(graphNodes, selectedId = null) {
 /**
  * Convert graph-data.json edges → React Flow edge format.
  */
-export function toFlowEdges(graphEdges) {
+export function toFlowEdges(graphEdges, clusterColorMap = {}) {
   // Track how many edges connect the exact same source/target to fan them out
   const edgeCounts = {};
   
@@ -202,6 +209,8 @@ export function toFlowEdges(graphEdges) {
     const offset = edgeCounts[pairKey];
     edgeCounts[pairKey]++;
 
+    const clusterColor = clusterColorMap[e.source] ?? '#3A3A3A';
+
     return {
       id: e.id,
       source: e.source,
@@ -209,36 +218,100 @@ export function toFlowEdges(graphEdges) {
       label: e.variable_name || '',
       type: e.type === 'circular_call' ? 'selfconnecting' : 'parallel',
       animated: false,
-      style: edgeStyle(e.type),
+      style: {
+        stroke: clusterColor,
+        strokeWidth: e.type === 'nested_call' ? 1 : 1.5,
+        strokeDasharray: e.type === 'nested_call' ? '5,4' : undefined,
+        opacity: 0.65,
+      },
       labelStyle: { fill: '#888', fontSize: 10 },
       labelBgStyle: { fill: 'transparent' },
-      markerEnd: { type: 'arrowclosed', color: edgeColor(e.type) },
+      markerEnd: { type: 'arrowclosed', color: clusterColor },
       data: { edgeType: e.type, offset: offset },
     }
   })
 }
 
-function edgeColor(type) {
-  switch (type) {
-    case 'circular_call': return '#ff4444'
-    case 'render': return '#AA00FF'
-    case 'call': return '#3A3A3A'
-    default: return '#3A3A3A'
+/**
+ * Apply styling (opacities, selections, cluster colors) to laid out flow graph.
+ */
+export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap = {}) {
+  // Find direct child nodes of the selected parent
+  const directChildrenIds = new Set();
+  if (selectedId) {
+    edges.forEach(e => {
+      if (e.source === selectedId) {
+        directChildrenIds.add(e.target);
+      }
+    });
   }
-}
 
-function edgeStyle(type) {
-  const base = { strokeWidth: 1.5 }
-  switch (type) {
-    case 'circular_call':
-      return { ...base, stroke: '#ff4444', strokeDasharray: '5,3' }
-    case 'nested_call':
-      return { ...base, stroke: '#555555', strokeDasharray: '6,3' }
-    case 'render':
-      return { ...base, stroke: '#AA00FF' }
-    case 'call':
-      return { ...base, stroke: '#3A3A3A' }
-    default:
-      return { ...base, stroke: '#3A3A3A' }
-  }
+  const styledNodes = nodes.map(n => {
+    let opacity = 1.0;
+    if (selectedId) {
+      if (n.id === selectedId || directChildrenIds.has(n.id)) {
+        opacity = 1.0;
+      } else {
+        opacity = 0.35;
+      }
+    }
+
+    return {
+      ...n,
+      data: {
+        ...n.data,
+        selected: n.id === selectedId,
+      },
+      style: {
+        ...n.style,
+        opacity: opacity,
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
+      }
+    };
+  });
+
+  const styledEdges = edges.map(e => {
+    let style = { ...e.style };
+    let animated = e.animated;
+    let markerEnd = { ...e.markerEnd };
+
+    const clusterColor = clusterColorMap[e.source] ?? '#3A3A3A';
+
+    if (selectedId) {
+      if (e.source === selectedId) {
+        style = {
+          ...style,
+          stroke: clusterColor,
+          strokeWidth: 2.5,
+          opacity: 1.0,
+        };
+        animated = true;
+        markerEnd = {
+          ...markerEnd,
+          color: clusterColor,
+        };
+      } else {
+        style = {
+          ...style,
+          opacity: 0.1,
+        };
+        animated = false;
+      }
+    } else {
+      style = {
+        ...style,
+        stroke: clusterColor,
+        opacity: 0.65,
+      };
+    }
+
+    return {
+      ...e,
+      style,
+      animated,
+      markerEnd,
+    };
+  });
+
+  return { nodes: styledNodes, edges: styledEdges };
 }

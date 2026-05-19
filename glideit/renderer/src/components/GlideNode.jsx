@@ -45,7 +45,7 @@ function HttpMethodBadge({ method }) {
 }
 
 export default function GlideNode({ data }) {
-  const [expanded, setExpanded] = useState(false)
+  const [localExpanded, setLocalExpanded] = useState(false)
 
   const {
     name,
@@ -63,6 +63,16 @@ export default function GlideNode({ data }) {
     selected,
   } = data
 
+  const expanded = data.expanded !== undefined ? data.expanded : localExpanded
+
+  const setExpanded = (val) => {
+    if (data.onToggleExpanded) {
+      data.onToggleExpanded(data.id)
+    } else {
+      setLocalExpanded(val)
+    }
+  }
+
   const isFlask = type === 'flask_route'
   const isExternal = type === 'external_call'
 
@@ -77,14 +87,25 @@ export default function GlideNode({ data }) {
     setExpanded(prev => !prev)
   }
 
-  const cardStyle = {};
-  if (data.clusterColor) {
-    cardStyle.borderLeftColor = data.clusterColor;
+  const NODE_STYLES = {
+    python_function: { background: '#1A1A2E', borderColor: '#1E90FF' },
+    flask_route:     { background: '#1A2E1A', borderColor: '#00C853' },
+    react_component: { background: '#2E1A2E', borderColor: '#AA00FF' },
+    external_call:   { background: '#2A2A2A', borderColor: '#555555' },
+    python_class:    { background: '#2A1A1A', borderColor: '#FF8C00' },
   }
-  if (selected && data.clusterColor) {
-    cardStyle.borderColor = data.clusterColor;
-    cardStyle.boxShadow = `0 0 25px ${data.clusterColor}3d, inset 0 0 12px ${data.clusterColor}14`;
-    cardStyle.background = `radial-gradient(circle at top left, ${data.clusterColor}0d, #1A1A1A 80%)`;
+
+  const typeStyle = NODE_STYLES[type] || { background: '#161616', borderColor: '#2A2A2A' }
+  const isEntryPoint = depth === 0
+  const clusterColor = data.clusterColor ?? null
+
+  const cardStyle = {
+    background: typeStyle.background,
+    borderColor: typeStyle.borderColor,
+    borderLeftColor: typeStyle.borderColor,
+    outline: isEntryPoint && clusterColor ? `2px solid ${clusterColor}` : 'none',
+    outlineOffset: '3px',
+    borderRadius: '8px',
   }
 
   return (

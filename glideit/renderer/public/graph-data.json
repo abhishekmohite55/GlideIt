@@ -1,12 +1,12 @@
 {
   "meta": {
     "glideit_version": "1.0.0",
-    "generated_at": "2026-05-18T19:36:42.007939+00:00",
+    "generated_at": "2026-05-19T13:12:52.691331+00:00",
     "repo_root": "F:/GlideIt",
-    "file_count": 20,
+    "file_count": 26,
     "language_counts": {
       "python": 10,
-      "jsx": 10
+      "jsx": 16
     }
   },
   "nodes": [
@@ -5607,11 +5607,59 @@
       "depth": 0
     },
     {
+      "id": "jsx:glideit/renderer/src/components/CanvasToolbar.jsx:CanvasToolbar",
+      "name": "CanvasToolbar",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/CanvasToolbar.jsx",
+      "line": 3,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": "No description available.",
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [
+        {
+          "name": "visibleDepth",
+          "type_hint": null
+        },
+        {
+          "name": "maxDepth",
+          "type_hint": null
+        },
+        {
+          "name": "onDepthChange",
+          "type_hint": null
+        },
+        {
+          "name": "layoutDirection",
+          "type_hint": null
+        },
+        {
+          "name": "onLayoutToggle",
+          "type_hint": null
+        },
+        {
+          "name": "nodeCount",
+          "type_hint": null
+        },
+        {
+          "name": "edgeCount",
+          "type_hint": null
+        }
+      ],
+      "depth": 0
+    },
+    {
       "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowContent",
       "name": "CodeFlowContent",
       "type": "react_component",
       "file": "glideit/renderer/src/components/CodeFlowPage.jsx",
-      "line": 32,
+      "line": 38,
       "params": [],
       "returns": {
         "type_hint": null,
@@ -5625,10 +5673,13 @@
         "useReactFlow",
         "useMemo",
         "useState",
+        "useEffect",
         "useNodesState",
         "useEdgesState",
-        "useEffect",
-        "useCallback"
+        "useCallback",
+        "useSpacePan",
+        "useKeyBindings",
+        "useRef"
       ],
       "props": [
         {
@@ -5715,11 +5766,49 @@
       "depth": 2
     },
     {
+      "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CanvasToolbar",
+      "name": "CanvasToolbar",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/CodeFlowPage.jsx",
+      "line": 0,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": null,
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [],
+      "depth": 2
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:LegendPanel",
+      "name": "LegendPanel",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/CodeFlowPage.jsx",
+      "line": 0,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": null,
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [],
+      "depth": 2
+    },
+    {
       "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowPage",
       "name": "CodeFlowPage",
       "type": "react_component",
       "file": "glideit/renderer/src/components/CodeFlowPage.jsx",
-      "line": 165,
+      "line": 379,
       "params": [],
       "returns": {
         "type_hint": null,
@@ -5855,7 +5944,7 @@
       "name": "JsxContent",
       "type": "react_component",
       "file": "glideit/renderer/src/components/JsxPage.jsx",
-      "line": 26,
+      "line": 32,
       "params": [],
       "returns": {
         "type_hint": null,
@@ -5869,10 +5958,13 @@
         "useReactFlow",
         "useMemo",
         "useState",
+        "useEffect",
         "useNodesState",
         "useEdgesState",
-        "useEffect",
-        "useCallback"
+        "useCallback",
+        "useSpacePan",
+        "useKeyBindings",
+        "useRef"
       ],
       "props": [
         {
@@ -5959,11 +6051,49 @@
       "depth": 2
     },
     {
+      "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:CanvasToolbar",
+      "name": "CanvasToolbar",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/JsxPage.jsx",
+      "line": 0,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": null,
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [],
+      "depth": 2
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:LegendPanel",
+      "name": "LegendPanel",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/JsxPage.jsx",
+      "line": 0,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": null,
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [],
+      "depth": 2
+    },
+    {
       "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxPage",
       "name": "JsxPage",
       "type": "react_component",
       "file": "glideit/renderer/src/components/JsxPage.jsx",
-      "line": 141,
+      "line": 363,
       "params": [],
       "returns": {
         "type_hint": null,
@@ -6000,6 +6130,116 @@
       "hooks": [],
       "props": [],
       "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:EdgeSample",
+      "name": "EdgeSample",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/LegendPanel.jsx",
+      "line": 40,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": "No description available.",
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [
+        {
+          "name": "style",
+          "type_hint": null
+        },
+        {
+          "name": "color",
+          "type_hint": null
+        }
+      ],
+      "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:NodeSample",
+      "name": "NodeSample",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/LegendPanel.jsx",
+      "line": 56,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": "No description available.",
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [
+        {
+          "name": "bg",
+          "type_hint": null
+        },
+        {
+          "name": "border",
+          "type_hint": null
+        }
+      ],
+      "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:Key",
+      "name": "Key",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/LegendPanel.jsx",
+      "line": 70,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": "No description available.",
+      "http_method": null,
+      "route_path": null,
+      "hooks": [],
+      "props": [
+        {
+          "name": "label",
+          "type_hint": null
+        }
+      ],
+      "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel",
+      "name": "LegendPanel",
+      "type": "react_component",
+      "file": "glideit/renderer/src/components/LegendPanel.jsx",
+      "line": 87,
+      "params": [],
+      "returns": {
+        "type_hint": null,
+        "variable_name": null,
+        "description": null
+      },
+      "docstring": "No description available.",
+      "http_method": null,
+      "route_path": null,
+      "hooks": [
+        "useState"
+      ],
+      "props": [
+        {
+          "name": "isOpen",
+          "type_hint": null
+        },
+        {
+          "name": "onClose",
+          "type_hint": null
+        }
+      ],
+      "depth": 0
     },
     {
       "id": "jsx:glideit/renderer/src/components/Navbar.jsx:LogoMark",
@@ -8529,6 +8769,22 @@
       "depth": 2
     },
     {
+      "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowContent--jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CanvasToolbar",
+      "source": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowContent",
+      "target": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CanvasToolbar",
+      "type": "render",
+      "variable_name": null,
+      "depth": 2
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowContent--jsx:glideit/renderer/src/components/CodeFlowPage.jsx:LegendPanel",
+      "source": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowContent",
+      "target": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:LegendPanel",
+      "type": "render",
+      "variable_name": null,
+      "depth": 2
+    },
+    {
       "id": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowPage--jsx:glideit/renderer/src/components/CodeFlowPage.jsx:ReactFlowProvider",
       "source": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:CodeFlowPage",
       "target": "jsx:glideit/renderer/src/components/CodeFlowPage.jsx:ReactFlowProvider",
@@ -8601,6 +8857,22 @@
       "depth": 2
     },
     {
+      "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxContent--jsx:glideit/renderer/src/components/JsxPage.jsx:CanvasToolbar",
+      "source": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxContent",
+      "target": "jsx:glideit/renderer/src/components/JsxPage.jsx:CanvasToolbar",
+      "type": "render",
+      "variable_name": null,
+      "depth": 2
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxContent--jsx:glideit/renderer/src/components/JsxPage.jsx:LegendPanel",
+      "source": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxContent",
+      "target": "jsx:glideit/renderer/src/components/JsxPage.jsx:LegendPanel",
+      "type": "render",
+      "variable_name": null,
+      "depth": 2
+    },
+    {
       "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxPage--jsx:glideit/renderer/src/components/JsxPage.jsx:ReactFlowProvider",
       "source": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxPage",
       "target": "jsx:glideit/renderer/src/components/JsxPage.jsx:ReactFlowProvider",
@@ -8612,6 +8884,30 @@
       "id": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxPage--jsx:glideit/renderer/src/components/JsxPage.jsx:JsxContent",
       "source": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxPage",
       "target": "jsx:glideit/renderer/src/components/JsxPage.jsx:JsxContent",
+      "type": "render",
+      "variable_name": null,
+      "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel--jsx:glideit/renderer/src/components/LegendPanel.jsx:NodeSample",
+      "source": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel",
+      "target": "jsx:glideit/renderer/src/components/LegendPanel.jsx:NodeSample",
+      "type": "render",
+      "variable_name": null,
+      "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel--jsx:glideit/renderer/src/components/LegendPanel.jsx:EdgeSample",
+      "source": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel",
+      "target": "jsx:glideit/renderer/src/components/LegendPanel.jsx:EdgeSample",
+      "type": "render",
+      "variable_name": null,
+      "depth": 1
+    },
+    {
+      "id": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel--jsx:glideit/renderer/src/components/LegendPanel.jsx:Key",
+      "source": "jsx:glideit/renderer/src/components/LegendPanel.jsx:LegendPanel",
+      "target": "jsx:glideit/renderer/src/components/LegendPanel.jsx:Key",
       "type": "render",
       "variable_name": null,
       "depth": 1
