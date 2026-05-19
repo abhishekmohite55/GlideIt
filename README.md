@@ -1,59 +1,92 @@
 # GlideIt 🚀
 
-GlideIt is a beautiful, powerful code mapping and visualization tool. It parses a software project's codebase (supporting Python, JavaScript, and JSX/React) and constructs an interactive, highly intuitive visual node graph showing every function, React component, API route, variable flow, and call relationship.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python Version" />
+  <img src="https://img.shields.io/badge/Node.js-18%2B-green?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js Version" />
+  <img src="https://img.shields.io/badge/Vite-5.x-purple?style=for-the-badge&logo=vite&logoColor=white" alt="Vite Version" />
+  <img src="https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React Version" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License" />
+</p>
 
-It produces a standalone visualization bundle in `glideit-out/` that can be viewed in any browser with **zero internet connection** and **no local server required**!
+**GlideIt** is a premium static code mapping and architecture visualization tool designed to bridge the gap between source code structure and human intuition. By running a single command, GlideIt scans your repository (supporting Python and JavaScript/React JSX), parses the Abstract Syntax Trees (AST) using Tree-sitter, and generates a standalone, interactive, dependency-free interactive HTML application inside `glideit-out/`.
+
+The visualization is entirely self-contained. It can be opened in any web browser with **zero internet connection** and **no local server required**!
 
 ---
 
 ## 🌟 Key Features
 
-### 🔍 Language-Agnostic Extractor System
-*   **Modular Extractor Architecture**: Designed to be extensible, utilizing a common `BaseExtractor` interface powered by `tree-sitter` AST parsers.
-*   **Python Static Code Analysis**:
-    *   Extracts class and function definitions, parameters (with type-hints), and return types.
-    *   Detects Flask routing decorators (`@app.route`, `@blueprint.route`) and labels them as API route entry-points.
-    *   Traces function-level invocation dependencies and variable assignments.
-*   **JSX/React Static Code Analysis**:
-    *   Extracts functional and class components.
-    *   Maps component-to-component render trees.
-    *   Identifies React Hook usages (`useState`, `useEffect`, etc.).
-    *   Extracts external HTTP API requests (`fetch` and `axios` calls).
+### 🔍 Advanced Abstract Syntax Tree (AST) Parsing
+*   **Modular Extractor Pipeline**: Powered by a common `BaseExtractor` interface which wraps Tree-sitter parsing modules.
+*   **Python Code Engine**:
+    *   Extracts classes, function definitions, parameters (with type-hints), and return types.
+    *   Identifies Flask routes (`@app.route`, `@blueprint.route`) and blueprinted controllers, establishing them as API entry-points.
+    *   Traces local variable assignments and function invocations.
+*   **React & JSX/TSX Code Engine**:
+    *   Extracts functional and class-based React components.
+    *   Constructs component render trees (parent-to-child component rendering).
+    *   Hooks analyzer: Tracks usages of `useState`, `useEffect`, and custom hooks.
+    *   HTTP client tracing: Inspects and documents `axios` and `fetch` calls.
 
-### 🎨 Advanced Interactive Visualization UI
-*   **ELK.js Layout Engine**: Automatically aligns, partitions, and renders complex call flows with high readability using `@layout-elk/elkjs`. No node overlaps or messy crossing lines.
-*   **Dynamic Layout Controls**:
-    *   **Layout Direction Toggle**: Instantly switch between Top-to-Bottom (`TB`) and Left-to-Right (`LR`) layout configurations.
-    *   **Depth Slider**: Filter the visible canvas nodes dynamically by their execution/dependency depth from root components and API endpoints.
-*   **Subsystem Cluster Coloring**: Uses a Breadth-First Search (BFS) partitioning algorithm to group nodes into independent codebase clusters. Each cluster is styled with a distinct pastel/neon color scheme.
-*   **Context-Aware Hover Breadcrumbs**: Hovering over any node dynamically computes the call chain back to its root entry point, displaying a clear navigation trail at the top of the canvas.
-*   **Focused Execution Highlights**:
-    *   Clicking a node highlights it with a glowing neon border matching its subsystem color.
-    *   Fades unrelated nodes (to `0.35` opacity) and edges (to `0.1` opacity) to emphasize context.
-    *   Displays animated flow dots on active outgoing connections.
-*   **Rich Navigation & Keybindings**:
-    *   Hold `Space + drag` to pan the canvas seamlessly.
-    *   Navigate/pan using Arrow keys.
+### 🎨 Visual & Interactive Controls
+*   **ELK.js Layout Engine**: Integrated with `@layout-elk/elkjs` to compute layered, crossing-free hierarchical layouts.
+*   **Layout Direction Toggle**: Instantly re-run the layout engine to switch between Top-to-Bottom (`TB`) and Left-to-Right (`LR`) orientations.
+*   **Execution Depth Slider**: Filter nodes dynamically by their depth (e.g. show only entry-points at depth 0, or slide to reveal deeply nested utility functions).
+*   **Breadcrumb Trace Indicator**: Hovering over any node dynamically runs a backtrack algorithm to compute and display the complete call sequence from the root entry-points down to that node.
+*   **Subsystem Grouping & Palette**: Employs a BFS-based partition algorithm that automatically colors codebase clusters with a premium neon/pastel palette (Neon Blue, Emerald Green, Indigo Purple, Amber Gold, Rose Pink, Ocean Teal, Coral Red).
+*   **Focused Highlight & Dimming**: Selecting a node applies a glowing shadow matching its subsystem's theme color, keeps its direct dependents fully opaque, dims all unrelated nodes (`0.35` opacity) and edges (`0.1` opacity), and animates flow direction with moving dots.
+*   **Advanced Navigation Keybindings**:
+    *   Hold `Space` + drag to pan the canvas smoothly.
+    *   Arrow keys to pan the canvas in small increments.
     *   `Ctrl + Shift + F` to fit the whole graph to the screen.
     *   `?` key to slide open the interactive **Legend Panel & Shortcut Reference** panel.
 
 ---
 
-## 📂 Project Architecture
+## 🔬 Architectural & Algorithmic Deep Dives
+
+To handle large codebases without turning into an unreadable "spaghetti graph," GlideIt implements several custom algorithms:
+
+### 1. Layered Graph Organization (ELK.js)
+Traditional force-directed graphs (e.g., d3-force) often cause nodes to cluster into circular, chaotic webs. GlideIt implements a layered algorithm via ELK.js:
+*   Nodes are categorized into layers based on their calculated **call depth**.
+*   The layout is calculated using the `layered` algorithm, ensuring edges flow unidirectionally (left-to-right or top-to-bottom) and node overlaps are mathematically prevented.
+
+### 2. BFS Subsystem Clustering
+GlideIt analyzes the topology of the call graph to isolate independent subsystems:
+$$\text{Clusters} = \text{ConnectedComponents}(G)$$
+Using a Breadth-First Search (BFS) traversal, the graph is split into isolated component subgraphs. Each subgraph is assigned a unique HSL color index, making it immediately clear which modules are decoupled from the rest of the application.
+
+```mermaid
+graph TD
+    A[Root Node / Entry Point] -->|BFS Scan| B(Subsystem A: Neon Blue)
+    A -->|BFS Scan| C(Subsystem A: Neon Blue)
+    D[Isolated Module] -->|BFS Scan| E(Subsystem B: Emerald Green)
+```
+
+### 3. Back-Trace Path Generation (Breadcrumbs)
+When you hover over a node, GlideIt traces its ancestors back to the origin:
+1.  It initiates a search back through incoming edges.
+2.  It traverses upward until it hits a node with `depth: 0` (Flask route or React page component).
+3.  It structures this path into a beautiful breadcrumb component showing the complete sequence, e.g. `auth.py:login ➔ user.py:get_user ➔ db.py:query`.
+
+---
+
+## 📂 Project Structure
 
 ```text
 glideit/
-├── glideit/                  # Python source package
+├── glideit/                  # Python CLI package
 │   ├── __init__.py
 │   ├── cli.py                # Command-line interface & custom threaded web server
 │   ├── walker.py             # Gitignore-aware project file scanner
 │   ├── graph.py              # Graph assembler & JSON serializer
-│   └── extractors/           # Language extractors
+│   └── extractors/           # Language AST extractors
 │       ├── __init__.py
 │       ├── base.py           # Common base extractor class
 │       ├── python_extractor.py
 │       └── jsx_extractor.py
-├── renderer/                 # React + Vite frontend source code
+├── renderer/                 # React + Vite visualization client
 │   ├── package.json          # Node dependencies including elkjs and xyflow
 │   ├── vite.config.js
 │   ├── index.html
@@ -91,8 +124,8 @@ To install GlideIt locally for development, clone the repository and run:
 pip install -e .
 ```
 
-### Frontend Development setup
-To run the React renderer locally:
+### Frontend Development Setup
+To run the React renderer locally during development:
 1. Navigate to the renderer directory:
    ```bash
    cd renderer
@@ -113,13 +146,13 @@ To run the React renderer locally:
 Once installed, GlideIt exposes two primary subcommands: `run` and `serve`.
 
 ### 1. Run Pipeline (`glideit run`)
-Parses the current repository directory, compiles the React renderer, and outputs a standalone visualization package.
+Parses the target repository, builds the Vite production application, compiles the React renderer, and outputs a standalone visualization package.
 ```bash
 glideit run [options]
 ```
 
 **Options**:
-*   `--output <dir>`: Target folder for the visualization output (defaults to `glideit-out/`).
+*   `--output <dir>`: Custom destination for the visualization bundle (defaults to `glideit-out/`).
 *   `--serve`: Runs the parser, bundles the site, and immediately runs a local preview server.
 *   `--help`: Details usage and flags.
 
@@ -136,7 +169,13 @@ glideit serve [options]
 
 ---
 
-## 📦 System Requirements
+## 🎮 Shortcuts Cheat Sheet
 
-*   **Python 3.8+** (with `tree-sitter`, `tree-sitter-python`, `tree-sitter-javascript`, `pathspec` libraries)
-*   **Node.js 18+** (required to compile the React client during builds)
+| Keybinding | Action |
+|---|---|
+| `Space` + Drag | Pan canvas freely without selecting or moving nodes |
+| `Arrow Keys` | Pan the viewport in small increments |
+| `Ctrl + Shift + F` | Fit the entire graph to the screen |
+| `?` | Toggle the Legend Panel & Shortcuts Reference |
+| `Escape` | Reset current node selection and remove highlights |
+| `Double Click Node` | Toggle node expansion to view parameters, return types, or docstrings |
