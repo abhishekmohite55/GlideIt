@@ -20,6 +20,7 @@ const EDGE_LEGEND = [
 const SHORTCUTS = [
   { keys: ['Space', 'drag'],          action: 'Pan canvas' },
   { keys: ['Alt', 'drag'],            action: 'Move selected node' },
+  { keys: ['Shift', 'click'],         action: 'Highlight call chain' },
   { keys: ['Space', 'scroll'],        action: 'Scroll vertically' },
   { keys: ['Shift', 'scroll'],        action: 'Scroll horizontally' },
   { keys: ['Drag on empty canvas'],   action: 'Box-select nodes' },

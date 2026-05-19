@@ -235,7 +235,7 @@ export function toFlowEdges(graphEdges, clusterColorMap = {}) {
 /**
  * Apply styling (opacities, selections, cluster colors) to laid out flow graph.
  */
-export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap = {}) {
+export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap = {}, highlightedPathIds = null, highlightedEdgeKeys = null) {
   // Find direct child nodes of the selected parent
   const directChildrenIds = new Set();
   if (selectedId) {
@@ -248,7 +248,13 @@ export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap
 
   const styledNodes = nodes.map(n => {
     let opacity = 1.0;
-    if (selectedId) {
+    if (highlightedPathIds) {
+      if (highlightedPathIds.has(n.id)) {
+        opacity = 1.0;
+      } else {
+        opacity = 0.2;
+      }
+    } else if (selectedId) {
       if (n.id === selectedId || directChildrenIds.has(n.id)) {
         opacity = 1.0;
       } else {
@@ -277,7 +283,28 @@ export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap
 
     const clusterColor = clusterColorMap[e.source] ?? '#3A3A3A';
 
-    if (selectedId) {
+    if (highlightedPathIds && highlightedEdgeKeys) {
+      const isPathEdge = highlightedEdgeKeys.has(`${e.source}->${e.target}`);
+      if (isPathEdge) {
+        style = {
+          ...style,
+          stroke: clusterColor,
+          strokeWidth: 2.5,
+          opacity: 1.0,
+        };
+        animated = true;
+        markerEnd = {
+          ...markerEnd,
+          color: clusterColor,
+        };
+      } else {
+        style = {
+          ...style,
+          opacity: 0.05,
+        };
+        animated = false;
+      }
+    } else if (selectedId) {
       if (e.source === selectedId) {
         style = {
           ...style,

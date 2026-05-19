@@ -25,13 +25,15 @@ import { useSpacePan } from '../hooks/useSpacePan.js'
 import { useKeyBindings } from '../hooks/useKeyBindings.js'
 import { CanvasToolbar } from './CanvasToolbar.jsx'
 import { LegendPanel } from './LegendPanel.jsx'
+import { findPathToRoot } from '../utils/findPathToRoot.js'
+import { BreadcrumbBar } from './BreadcrumbBar.jsx'
 
 const NODE_TYPES = { glideNode: GlideNode }
 const EDGE_TYPES = { parallel: ParallelEdge }
 
 function JsxContent({ data }) {
   const { nodes: graphNodes, edges: graphEdges } = data
-  const { fitView, setViewport, getViewport } = useReactFlow()
+  const { fitView, setViewport, getViewport, getNode, setCenter } = useReactFlow()
 
   const filteredNodes = useMemo(
     () => graphNodes.filter(n => n.type === 'react_component'),
@@ -78,6 +80,31 @@ function JsxContent({ data }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
+  const [layoutedNodes, setLayoutedNodes] = useState([])
+  const [layoutedEdges, setLayoutedEdges] = useState([])
+
+  const [hoveredPath, setHoveredPath] = useState([])
+  const [lockedPath, setLockedPath] = useState(null)
+  const hoverTimeoutRef = useRef(null)
+
+  const highlightedPathIds = useMemo(() => {
+    const path = hoveredPath.length > 0 ? hoveredPath : lockedPath
+    if (!path || path.length === 0) return null
+    return new Set(path.map(n => n.id))
+  }, [hoveredPath, lockedPath])
+
+  const highlightedEdgeKeys = useMemo(() => {
+    const path = hoveredPath.length > 0 ? hoveredPath : lockedPath
+    if (!path || path.length < 2) return null
+    const keys = new Set()
+    for (let i = 0; i < path.length - 1; i++) {
+      const sourceId = path[i].id
+      const targetId = path[i+1].id
+      keys.add(`${sourceId}->${targetId}`)
+    }
+    return keys
+  }, [hoveredPath, lockedPath])
+
   const onToggleExpanded = useCallback((id) => {
     setNodes(nds => nds.map(n => {
       if (n.id === id) {
@@ -102,6 +129,7 @@ function JsxContent({ data }) {
     [filteredEdges, clusterColorMap]
   )
 
+  // Layout runner
   useEffect(() => {
     if (rawNodes.length === 0) return
 
@@ -110,13 +138,27 @@ function JsxContent({ data }) {
     const vEdges = rawEdges.filter(e => vNodeIds.has(e.source) && vNodeIds.has(e.target))
 
     getElkLayout(vNodes, vEdges, layoutDir)
-      .then(({ nodes: layoutedNodes, edges: layoutedEdges }) => {
-        const { nodes: styledNodes, edges: styledEdges } = applyFlowStyles(layoutedNodes, layoutedEdges, selectedId, clusterColorMap)
-        setNodes(styledNodes)
-        setEdges(styledEdges)
+      .then(({ nodes: outNodes, edges: outEdges }) => {
+        setLayoutedNodes(outNodes)
+        setLayoutedEdges(outEdges)
       })
       .catch(err => console.error('ELK layout failed:', err))
-  }, [rawNodes, rawEdges, selectedId, clusterColorMap, layoutDir, layoutTrigger, visibleDepth])
+  }, [rawNodes, rawEdges, layoutDir, layoutTrigger, visibleDepth])
+
+  // Styling applier
+  useEffect(() => {
+    if (layoutedNodes.length === 0) return
+    const { nodes: styledNodes, edges: styledEdges } = applyFlowStyles(
+      layoutedNodes,
+      layoutedEdges,
+      selectedId,
+      clusterColorMap,
+      highlightedPathIds,
+      highlightedEdgeKeys
+    )
+    setNodes(styledNodes)
+    setEdges(styledEdges)
+  }, [layoutedNodes, layoutedEdges, selectedId, clusterColorMap, highlightedPathIds, highlightedEdgeKeys, setNodes, setEdges])
 
   const isPanning = useSpacePan()
 
@@ -141,6 +183,7 @@ function JsxContent({ data }) {
       data: { ...n.data, expanded: false }
     })))
     setSelectedId(null)
+    setLockedPath(null)
   }, [setNodes])
 
   const handleExpandSelected = useCallback(() => {
@@ -226,11 +269,33 @@ function JsxContent({ data }) {
     }
   }, [nodes, edges, fitView])
 
-  const onNodeClick = useCallback((_, node) => {
-    setSelectedId(prev => prev === node.id ? null : node.id)
-  }, [])
+  const handleBreadcrumbNodeClick = useCallback((nodeId) => {
+    const node = getNode(nodeId)
+    if (!node) return
+    setCenter(
+      node.position.x + (node.width ?? 260) / 2,
+      node.position.y + (node.height ?? 90) / 2,
+      { zoom: 1.2, duration: 400 }
+    )
+  }, [getNode, setCenter])
 
-  const onPaneClick = useCallback(() => setSelectedId(null), [])
+  const onNodeClick = useCallback((e, node) => {
+    if (e.shiftKey) {
+      setLockedPath(prev => {
+        if (prev && prev[prev.length - 1]?.id === node.id) {
+          return null
+        }
+        return findPathToRoot(node.id, filteredNodes, filteredEdges)
+      })
+    } else {
+      setSelectedId(prev => prev === node.id ? null : node.id)
+    }
+  }, [filteredNodes, filteredEdges])
+
+  const onPaneClick = useCallback(() => {
+    setSelectedId(null)
+    setLockedPath(null)
+  }, [])
 
   const wrapperRef = useRef(null)
 
@@ -276,6 +341,11 @@ function JsxContent({ data }) {
         height: '100%',
       }}
     >
+      <BreadcrumbBar
+        path={hoveredPath.length > 0 ? hoveredPath : (lockedPath || [])}
+        onNodeClick={handleBreadcrumbNodeClick}
+      />
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -283,6 +353,20 @@ function JsxContent({ data }) {
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodeMouseEnter={(_, node) => {
+          if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current)
+          }
+          hoverTimeoutRef.current = setTimeout(() => {
+            setHoveredPath(findPathToRoot(node.id, filteredNodes, filteredEdges))
+          }, 400)
+        }}
+        onNodeMouseLeave={() => {
+          if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current)
+          }
+          setHoveredPath([])
+        }}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         panOnDrag={isPanning}
