@@ -16,22 +16,26 @@ from pathlib import Path
 
 from glideit import __version__
 
-
 # ──────────────────────────────────────────────
 # Colour helpers (no deps)
 # ──────────────────────────────────────────────
 
+
 def _cyan(s: str) -> str:
     return f"\033[96m{s}\033[0m"
+
 
 def _green(s: str) -> str:
     return f"\033[92m{s}\033[0m"
 
+
 def _yellow(s: str) -> str:
     return f"\033[93m{s}\033[0m"
 
+
 def _red(s: str) -> str:
     return f"\033[91m{s}\033[0m"
+
 
 def _bold(s: str) -> str:
     return f"\033[1m{s}\033[0m"
@@ -41,13 +45,14 @@ def _bold(s: str) -> str:
 # Subcommand: run
 # ──────────────────────────────────────────────
 
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute the full parse → render pipeline."""
-    from glideit.walker import Walker
-    from glideit.graph import GraphAssembler
-    from glideit.extractors.python_extractor import PythonExtractor
     from glideit.extractors.jsx_extractor import JSXExtractor
+    from glideit.extractors.python_extractor import PythonExtractor
+    from glideit.graph import GraphAssembler
     from glideit.renderer_builder import build_renderer
+    from glideit.walker import Walker
 
     repo_root = Path(args.repo_root).resolve()
     output_dir = Path(args.output).resolve()
@@ -59,7 +64,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(_bold(_cyan("GlideIt") + " — scanning project..."))
 
     # ── Walk the directory ────────────────────
-    walker = Walker(repo_root)
+    walker = Walker(repo_root, exclude_patterns=args.exclude)
     py_files, jsx_files = walker.collect()
 
     print(f"  Parsing Python files...  ({_bold(str(len(py_files)))} found)")
@@ -110,7 +115,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(_yellow("  graph-data.json was written. You can build the renderer manually."))
 
     if args.single:
-        print(_green("\nDone.") + f" Self-contained HTML built. Open {_bold(str(output_dir / 'index.html'))} directly in your browser.")
+        print(
+            _green("\nDone.")
+            + f" Self-contained HTML built. Open {_bold(str(output_dir / 'index.html'))} directly in your browser."
+        )
     else:
         print(_green("\nDone.") + f" Visualizer assets generated in {_bold(str(output_dir))}.")
 
@@ -126,10 +134,10 @@ def cmd_run(args: argparse.Namespace) -> int:
 # Subcommand: serve & Local Web Server Logic
 # ──────────────────────────────────────────────
 
+
 def start_server(directory: Path, port: int = 8000) -> int:
     """Serve the output directory with a local HTTP server and open the browser."""
     import http.server
-    import socketserver
     import webbrowser
     from threading import Thread
 
@@ -144,7 +152,7 @@ def start_server(directory: Path, port: int = 8000) -> int:
     attempts = 0
     actual_port = port
     server = None
-    
+
     while attempts < 100:
         try:
             server = http.server.ThreadingHTTPServer(("", actual_port), Handler)
@@ -184,7 +192,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         return 1
     index_html = directory / "index.html"
     if not index_html.exists():
-        print(_yellow(f"[warn] index.html not found in {directory}. Make sure you ran 'glideit run' first."))
+        print(
+            _yellow(
+                f"[warn] index.html not found in {directory}. Make sure you ran 'glideit run' first."
+            )
+        )
 
     return start_server(directory, args.port)
 
@@ -192,6 +204,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 # ──────────────────────────────────────────────
 # Argument parser
 # ──────────────────────────────────────────────
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -219,7 +232,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the repository root to parse (default: current directory)",
     )
     run_parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         default="glideit-out",
         metavar="DIR",
         help="Output directory (default: glideit-out/)",
@@ -230,13 +244,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bundle the visualizer as a single, self-contained HTML file containing the JSON data",
     )
     run_parser.add_argument(
-        "--serve", "-s",
+        "--serve",
+        "-s",
         action="store_true",
         help="Parse the codebase, build the visualizer, and then automatically spin up a local server to view it",
     )
+    run_parser.add_argument(
+        "--exclude",
+        nargs="*",
+        default=[],
+        metavar="PATTERN",
+        help='Glob patterns to exclude from scanning. Example: --exclude tests/ migrations/ "**/__pycache__"',
+    )
 
     # serve parser
-    serve_parser = subparsers.add_parser("serve", help="Serve an ALREADY generated visualizer output directory (does not re-parse)")
+    serve_parser = subparsers.add_parser(
+        "serve", help="Serve an ALREADY generated visualizer output directory (does not re-parse)"
+    )
     serve_parser.add_argument(
         "directory",
         nargs="?",
@@ -244,7 +268,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output directory to serve (default: glideit-out/)",
     )
     serve_parser.add_argument(
-        "--port", "-p",
+        "--port",
+        "-p",
         type=int,
         default=8000,
         help="Port to start the local web server on (default: 8000)",

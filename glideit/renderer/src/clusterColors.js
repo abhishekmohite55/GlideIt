@@ -13,6 +13,24 @@ export const CLUSTER_COLORS = [
 ];
 
 /**
+ * Returns a color for the given cluster index.
+ * Uses the base palette for the first 8 clusters,
+ * then generates additional colors by spacing hues dynamically.
+ *
+ * @param {number} index - the cluster/subsystem index
+ * @returns {string} HSL or Hex color string
+ */
+export function getClusterColor(index) {
+  if (index < CLUSTER_COLORS.length) {
+    return CLUSTER_COLORS[index];
+  }
+  // Generate a color by spacing hue dynamically using golden angle spacing
+  const extraIndex = index - CLUSTER_COLORS.length;
+  const hue = Math.round((extraIndex * 137.5) % 360);
+  return `hsl(${hue}, 70%, 60%)`;
+}
+
+/**
  * Assigns a cluster color to every node, based on which entry-point node
  * is the "ancestor" of that node.
  *
@@ -34,7 +52,7 @@ export function buildClusterColorMap(nodes, edges) {
   const colorMap = {};
 
   entryPoints.forEach((ep, index) => {
-    const color = CLUSTER_COLORS[index % CLUSTER_COLORS.length];
+    const color = getClusterColor(index);
 
     // BFS from this entry point to find all reachable nodes
     const visited = new Set();

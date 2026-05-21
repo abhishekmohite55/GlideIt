@@ -45,7 +45,7 @@ export function findPathToRoot(nodeId, allNodes, allEdges) {
 
     const parents = reverseAdj[current] || [];
     parents.forEach(parentId => {
-      if (!visited.has(parentId)) {
+      if (!visited.has(parentId) && !path.includes(parentId)) {
         queue.push([parentId, ...path]);
       }
     });

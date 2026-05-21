@@ -10,7 +10,11 @@ export default defineConfig({
     isSingleFile && viteSingleFile()
   ].filter(Boolean),
   base: './',
+  worker: {
+    format: 'es',
+  },
   build: {
+    outDir: isSingleFile ? 'dist-single' : 'dist',
     rollupOptions: {
       output: {
         // Ensure assets are in a predictable location

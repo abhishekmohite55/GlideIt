@@ -12,7 +12,6 @@ Extracts:
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -22,7 +21,7 @@ from glideit.extractors.base import BaseExtractor
 # ── tree-sitter setup ─────────────────────────────────────────────────────────
 try:
     import tree_sitter_javascript as tsjs
-    from tree_sitter import Language, Parser, Node
+    from tree_sitter import Language, Node, Parser
 
     JS_LANGUAGE = Language(tsjs.language())
     _PARSER = Parser(JS_LANGUAGE)
@@ -34,8 +33,9 @@ except Exception as _e:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def _text(node: "Node", source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _first_child_by_type(node: "Node", *types: str) -> Optional["Node"]:
@@ -52,28 +52,49 @@ def _children_by_type(node: "Node", *types: str) -> List["Node"]:
 def _find_all(node: "Node", *types: str) -> List["Node"]:
     """Recursively find all descendant nodes of given types."""
     results: List["Node"] = []
+
     def walk(n: "Node") -> None:
         if n.type in types:
             results.append(n)
         for child in n.children:
             walk(child)
+
     walk(node)
     return results
 
 
 # ── Component detection helpers ───────────────────────────────────────────────
 
-_REACT_HOOKS = frozenset([
-    "useState", "useEffect", "useContext", "useReducer", "useCallback",
-    "useMemo", "useRef", "useImperativeHandle", "useLayoutEffect",
-    "useDebugValue", "useId", "useTransition", "useDeferredValue",
-])
+_REACT_HOOKS = frozenset(
+    [
+        "useState",
+        "useEffect",
+        "useContext",
+        "useReducer",
+        "useCallback",
+        "useMemo",
+        "useRef",
+        "useImperativeHandle",
+        "useLayoutEffect",
+        "useDebugValue",
+        "useId",
+        "useTransition",
+        "useDeferredValue",
+    ]
+)
 
-_LIFECYCLE_METHODS = frozenset([
-    "componentDidMount", "componentDidUpdate", "componentWillUnmount",
-    "componentWillMount", "shouldComponentUpdate", "render",
-    "componentDidCatch", "getDerivedStateFromProps",
-])
+_LIFECYCLE_METHODS = frozenset(
+    [
+        "componentDidMount",
+        "componentDidUpdate",
+        "componentWillUnmount",
+        "componentWillMount",
+        "shouldComponentUpdate",
+        "render",
+        "componentDidCatch",
+        "getDerivedStateFromProps",
+    ]
+)
 
 
 def _is_component_name(name: str) -> bool:
@@ -91,7 +112,9 @@ def _collect_hooks(body_node: "Node", source: bytes) -> List[str]:
             continue
         name = _text(func, source).strip()
         # Simple hook call: useState(...)
-        if (name in _REACT_HOOKS or (name.startswith("use") and name[3:4].isupper())) and name not in seen:
+        if (
+            name in _REACT_HOOKS or (name.startswith("use") and name[3:4].isupper())
+        ) and name not in seen:
             hooks.append(name)
             seen.add(name)
     return hooks
@@ -137,7 +160,7 @@ def _collect_fetch_axios(body_node: "Node", source: bytes) -> List[Dict[str, Any
         if args_node:
             str_args = _find_all(args_node, "string")
             if str_args:
-                url = _text(str_args[0], source).strip('"\'`').strip()
+                url = _text(str_args[0], source).strip("\"'`").strip()
             # axios.post / axios.get / etc.
             if is_axios and "." in func_name:
                 method = func_name.split(".")[-1].upper()
@@ -173,6 +196,7 @@ def _collect_props_from_params(params_node: "Node", source: bytes) -> List[Dict[
 
 # ── JSX Extractor ─────────────────────────────────────────────────────────────
 
+
 class JSXExtractor(BaseExtractor):
     """Extract nodes and edges from JSX/JS/TSX source files using tree-sitter."""
 
@@ -185,16 +209,20 @@ class JSXExtractor(BaseExtractor):
             return [], []
 
         try:
-            tree = _PARSER.parse(source)
-        except Exception as exc:
-            raise RuntimeError(f"tree-sitter parse error: {exc}") from exc
+            try:
+                tree = _PARSER.parse(source)
+            except Exception as exc:
+                raise RuntimeError(f"tree-sitter parse error: {exc}") from exc
 
-        rel = self._rel(file_path)
-        nodes: List[Dict[str, Any]] = []
-        edges: List[Dict[str, Any]] = []
+            rel = self._rel(file_path)
+            nodes: List[Dict[str, Any]] = []
+            edges: List[Dict[str, Any]] = []
 
-        self._walk_program(tree.root_node, source, rel, nodes, edges)
-        return nodes, edges
+            self._walk_program(tree.root_node, source, rel, nodes, edges)
+            return nodes, edges
+        except Exception as e:
+            print(f"[GlideIt WARNING] Skipping {file_path}: {e}")
+            return [], []
 
     # ──────────────────────────────────────────────────────────────
     # Module-level walker
@@ -290,7 +318,9 @@ class JSXExtractor(BaseExtractor):
                     ):
                         params = value_node.child_by_field_name("parameters")
                         body = value_node.child_by_field_name("body")
-                        self._register_component(name, node, params, body, source, rel, nodes, edges)
+                        self._register_component(
+                            name, node, params, body, source, rel, nodes, edges
+                        )
 
     # ──────────────────────────────────────────────────────────────
     # Component registration
@@ -333,44 +363,52 @@ class JSXExtractor(BaseExtractor):
             target_id = self._make_node_id("jsx", rel, child_component)
             # Stub target if not yet defined (may be in another file)
             if not any(n["id"] == target_id for n in nodes):
-                nodes.append(self._node(
-                    id=target_id,
-                    name=child_component,
-                    type="react_component",
-                    file=rel,
-                    line=0,
-                    depth=1,
-                ))
+                nodes.append(
+                    self._node(
+                        id=target_id,
+                        name=child_component,
+                        type="react_component",
+                        file=rel,
+                        line=0,
+                        depth=1,
+                    )
+                )
             edge_id = self._make_edge_id(node_id, target_id)
-            edges.append(self._edge(
-                id=edge_id,
-                source=node_id,
-                target=target_id,
-                type="render",
-            ))
+            edges.append(
+                self._edge(
+                    id=edge_id,
+                    source=node_id,
+                    target=target_id,
+                    type="render",
+                )
+            )
 
         # ── External fetch/axios calls ──────────
         for fc in fetch_calls:
             ext_name = f"{fc['name']}:{fc.get('url') or 'dynamic'}"
             ext_id = self._make_node_id("ext", rel, ext_name)
             if not any(n["id"] == ext_id for n in nodes):
-                nodes.append(self._node(
-                    id=ext_id,
-                    name=fc["name"],
-                    type="external_call",
-                    file=rel,
-                    line=line,
-                    route_path=fc.get("url"),
-                    http_method=fc.get("method", "GET"),
-                    depth=2,
-                ))
+                nodes.append(
+                    self._node(
+                        id=ext_id,
+                        name=fc["name"],
+                        type="external_call",
+                        file=rel,
+                        line=line,
+                        route_path=fc.get("url"),
+                        http_method=fc.get("method", "GET"),
+                        depth=2,
+                    )
+                )
             edge_id = self._make_edge_id(node_id, ext_id)
-            edges.append(self._edge(
-                id=edge_id,
-                source=node_id,
-                target=ext_id,
-                type="call",
-            ))
+            edges.append(
+                self._edge(
+                    id=edge_id,
+                    source=node_id,
+                    target=ext_id,
+                    type="call",
+                )
+            )
 
     # ──────────────────────────────────────────────────────────────
     # Class component
@@ -397,7 +435,6 @@ class JSXExtractor(BaseExtractor):
         body = class_node.child_by_field_name("body")
         jsx_children: List[str] = []
         lifecycle: List[str] = []
-        hooks: List[str] = []
         fetch_calls: List[Dict] = []
 
         if body:
@@ -432,18 +469,22 @@ class JSXExtractor(BaseExtractor):
                 continue
             target_id = self._make_node_id("jsx", rel, child_name)
             if not any(n["id"] == target_id for n in nodes):
-                nodes.append(self._node(
-                    id=target_id,
-                    name=child_name,
-                    type="react_component",
-                    file=rel,
-                    line=0,
-                    depth=1,
-                ))
+                nodes.append(
+                    self._node(
+                        id=target_id,
+                        name=child_name,
+                        type="react_component",
+                        file=rel,
+                        line=0,
+                        depth=1,
+                    )
+                )
             edge_id = self._make_edge_id(node_id, target_id)
-            edges.append(self._edge(
-                id=edge_id,
-                source=node_id,
-                target=target_id,
-                type="render",
-            ))
+            edges.append(
+                self._edge(
+                    id=edge_id,
+                    source=node_id,
+                    target=target_id,
+                    type="render",
+                )
+            )

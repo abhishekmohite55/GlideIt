@@ -21,7 +21,7 @@ from glideit.extractors.base import BaseExtractor
 # ── tree-sitter setup ─────────────────────────────────────────────────────────
 try:
     import tree_sitter_python as tspython
-    from tree_sitter import Language, Parser, Node
+    from tree_sitter import Language, Node, Parser
 
     PY_LANGUAGE = Language(tspython.language())
     _PARSER = Parser(PY_LANGUAGE)
@@ -33,8 +33,9 @@ except Exception as _e:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def _text(node: "Node", source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _child_by_field(node: "Node", field: str) -> Optional["Node"]:
@@ -64,7 +65,7 @@ def _extract_docstring(body_node: "Node", source: bytes) -> Optional[str]:
                     # Strip triple or single quotes
                     for q in ('"""', "'''", '"', "'"):
                         if raw.startswith(q) and raw.endswith(q) and len(raw) > 2 * len(q):
-                            return raw[len(q):-len(q)].strip()
+                            return raw[len(q) : -len(q)].strip()
                     return raw
         break  # docstring must be first statement
     return None
@@ -82,37 +83,45 @@ def _extract_params(parameters_node: "Node", source: bytes) -> List[Dict[str, An
         elif child.type == "typed_parameter":
             name_node = _first_child_by_type(child, "identifier")
             type_node = child.child_by_field_name("type")
-            params.append({
-                "name": _text(name_node, source) if name_node else "?",
-                "type_hint": _text(type_node, source) if type_node else None,
-                "default_value": None,
-            })
+            params.append(
+                {
+                    "name": _text(name_node, source) if name_node else "?",
+                    "type_hint": _text(type_node, source) if type_node else None,
+                    "default_value": None,
+                }
+            )
         elif child.type == "default_parameter":
             name_node = child.child_by_field_name("name")
             value_node = child.child_by_field_name("value")
-            params.append({
-                "name": _text(name_node, source) if name_node else "?",
-                "type_hint": None,
-                "default_value": _text(value_node, source) if value_node else None,
-            })
+            params.append(
+                {
+                    "name": _text(name_node, source) if name_node else "?",
+                    "type_hint": None,
+                    "default_value": _text(value_node, source) if value_node else None,
+                }
+            )
         elif child.type == "typed_default_parameter":
             name_node = child.child_by_field_name("name")
             type_node = child.child_by_field_name("type")
             value_node = child.child_by_field_name("value")
-            params.append({
-                "name": _text(name_node, source) if name_node else "?",
-                "type_hint": _text(type_node, source) if type_node else None,
-                "default_value": _text(value_node, source) if value_node else None,
-            })
+            params.append(
+                {
+                    "name": _text(name_node, source) if name_node else "?",
+                    "type_hint": _text(type_node, source) if type_node else None,
+                    "default_value": _text(value_node, source) if value_node else None,
+                }
+            )
         elif child.type in ("list_splat_pattern", "dictionary_splat_pattern"):
             inner = _first_child_by_type(child, "identifier")
             prefix = "*" if child.type == "list_splat_pattern" else "**"
             if inner:
-                params.append({
-                    "name": prefix + _text(inner, source),
-                    "type_hint": None,
-                    "default_value": None,
-                })
+                params.append(
+                    {
+                        "name": prefix + _text(inner, source),
+                        "type_hint": None,
+                        "default_value": None,
+                    }
+                )
 
     # Filter out 'self' and 'cls'
     params = [p for p in params if p["name"] not in ("self", "cls")]
@@ -131,50 +140,107 @@ def _extract_return_type(func_node: "Node", source: bytes) -> Optional[str]:
 
 # ── Flask route detection ──────────────────────────────────────────────────────
 
-def _is_flask_route_decorator(decorator_node: "Node", source: bytes) -> Tuple[Optional[str], Optional[str]]:
+
+def _is_flask_route_decorator(
+    decorator_node: "Node", source: bytes
+) -> Tuple[Optional[str], Optional[str]]:
     """
-    Detect @app.route(...) or @blueprint.route(...) decorators.
+    Detect Flask route decorators on app or blueprints (name-agnostic).
+    Matches @<any>.route, @<any>.get, @<any>.post, @<any>.put, @<any>.delete, @<any>.patch.
     Returns (http_method, route_path) or (None, None).
     """
-    dec_text = _text(decorator_node, source)
-    if ".route(" not in dec_text:
-        return None, None
-
-    # Extract path (first positional arg)
-    route_path: Optional[str] = None
-    http_method = "GET"  # default
-
     call_node = _first_child_by_type(decorator_node, "call")
     if call_node is None:
-        # Try direct attribute call pattern
         for child in decorator_node.children:
             if child.type == "call":
                 call_node = child
                 break
+    if call_node is None:
+        return None, None
 
-    if call_node:
-        args_node = call_node.child_by_field_name("arguments")
-        if args_node:
-            # First string arg = route path
-            for arg in args_node.children:
-                if arg.type == "string" and route_path is None:
-                    route_path = _text(arg, source).strip('"\'')
-                # methods=["GET", "POST"] keyword arg
-                elif arg.type == "keyword_argument":
-                    kw_name = arg.child_by_field_name("name")
+    func_node = call_node.child_by_field_name("function")
+    if func_node is None:
+        return None, None
+
+    method_name = None
+    if func_node.type == "attribute":
+        attr_node = func_node.child_by_field_name("attribute")
+        if attr_node:
+            method_name = _text(attr_node, source)
+    elif func_node.type == "identifier":
+        method_name = _text(func_node, source)
+
+    if method_name not in ("route", "get", "post", "put", "delete", "patch"):
+        return None, None
+
+    # Determine default method based on decorator name
+    if method_name == "route":
+        default_method = "GET"
+    else:
+        default_method = method_name.upper()
+
+    # Find the route path and methods keyword argument
+    route_path = None
+    http_method = default_method
+
+    args_node = _first_child_by_type(call_node, "argument_list")
+    if args_node:
+        # First argument is typically the path
+        for arg in args_node.children:
+            if arg.type == "string":
+                raw = _text(arg, source).strip()
+                # strip outer quotes
+                for q in ('"""', "'''", '"', "'"):
+                    if raw.startswith(q) and raw.endswith(q) and len(raw) >= 2 * len(q):
+                        raw = raw[len(q) : -len(q)]
+                        break
+                route_path = raw
+                break
+            elif arg.type == "keyword_argument":
+                kw_name = arg.child_by_field_name("name")
+                if kw_name and _text(kw_name, source) == "rule":
                     kw_val = arg.child_by_field_name("value")
-                    if kw_name and _text(kw_name, source) == "methods" and kw_val:
-                        methods_text = _text(kw_val, source)
-                        # Parse out the methods
-                        import re
-                        methods_found = re.findall(r'["\']([A-Z]+)["\']', methods_text)
+                    if kw_val and kw_val.type == "string":
+                        raw = _text(kw_val, source).strip()
+                        for q in ('"""', "'''", '"', "'"):
+                            if raw.startswith(q) and raw.endswith(q) and len(raw) >= 2 * len(q):
+                                raw = raw[len(q) : -len(q)]
+                                break
+                        route_path = raw
+
+        # Look for methods keyword argument: methods=['GET', 'POST']
+        for arg in args_node.children:
+            if arg.type == "keyword_argument":
+                name_node = arg.child_by_field_name("name")
+                if name_node and _text(name_node, source) == "methods":
+                    val_node = arg.child_by_field_name("value")
+                    if val_node:
+                        # Extract methods list
+                        methods_found = []
+                        if val_node.type == "list":
+                            for item in val_node.children:
+                                if item.type == "string":
+                                    m_raw = _text(item, source).strip()
+                                    for q in ('"""', "'''", '"', "'"):
+                                        if (
+                                            m_raw.startswith(q)
+                                            and m_raw.endswith(q)
+                                            and len(m_raw) >= 2 * len(q)
+                                        ):
+                                            m_raw = m_raw[len(q) : -len(q)]
+                                            break
+                                    methods_found.append(m_raw.upper())
                         if methods_found:
                             http_method = ",".join(methods_found)
+
+    if route_path is None:
+        return None, None
 
     return http_method, route_path
 
 
 # ── Call extraction ────────────────────────────────────────────────────────────
+
 
 def _collect_calls(body_node: "Node", source: bytes) -> List[str]:
     """Recursively collect all function call names within a body node."""
@@ -197,6 +263,7 @@ def _collect_calls(body_node: "Node", source: bytes) -> List[str]:
 
 # ── Variable assignment extraction ────────────────────────────────────────────
 
+
 def _collect_assignments(body_node: "Node", source: bytes) -> List[Dict[str, str]]:
     """Collect simple variable assignments at the direct function-body scope."""
     assignments: List[Dict[str, str]] = []
@@ -210,25 +277,55 @@ def _collect_assignments(body_node: "Node", source: bytes) -> List[Dict[str, str
                     lhs = inner.child_by_field_name("left")
                     rhs = inner.child_by_field_name("right")
                     if lhs and rhs:
-                        assignments.append({
-                            "name": _text(lhs, source),
-                            "value": _text(rhs, source),
-                        })
+                        assignments.append(
+                            {
+                                "name": _text(lhs, source),
+                                "value": _text(rhs, source),
+                            }
+                        )
     return assignments
 
 
 # ── Main extractor class ───────────────────────────────────────────────────────
 
+
 class PythonExtractor(BaseExtractor):
     """Extract nodes and edges from Python source files using tree-sitter."""
 
     # Map of simple call names to known external libraries to mark as external_call
-    _STDLIB_PREFIXES = frozenset([
-        "os", "sys", "re", "json", "math", "time", "datetime", "pathlib",
-        "logging", "print", "len", "range", "enumerate", "zip", "map",
-        "filter", "sorted", "reversed", "isinstance", "type", "str", "int",
-        "float", "list", "dict", "set", "tuple", "open", "super",
-    ])
+    _STDLIB_PREFIXES = frozenset(
+        [
+            "os",
+            "sys",
+            "re",
+            "json",
+            "math",
+            "time",
+            "datetime",
+            "pathlib",
+            "logging",
+            "print",
+            "len",
+            "range",
+            "enumerate",
+            "zip",
+            "map",
+            "filter",
+            "sorted",
+            "reversed",
+            "isinstance",
+            "type",
+            "str",
+            "int",
+            "float",
+            "list",
+            "dict",
+            "set",
+            "tuple",
+            "open",
+            "super",
+        ]
+    )
 
     def extract(
         self,
@@ -239,29 +336,33 @@ class PythonExtractor(BaseExtractor):
             return [], []
 
         try:
-            tree = _PARSER.parse(source)
-        except Exception as exc:
-            raise RuntimeError(f"tree-sitter parse error: {exc}") from exc
+            try:
+                tree = _PARSER.parse(source)
+            except Exception as exc:
+                raise RuntimeError(f"tree-sitter parse error: {exc}") from exc
 
-        rel = self._rel(file_path)
-        nodes: List[Dict[str, Any]] = []
-        edges: List[Dict[str, Any]] = []
+            rel = self._rel(file_path)
+            nodes: List[Dict[str, Any]] = []
+            edges: List[Dict[str, Any]] = []
 
-        # Collect all defined function/class names for distinguishing internal calls
-        defined_names: Set[str] = set()
-        self._collect_defined_names(tree.root_node, source, defined_names)
+            # Collect all defined function/class names for distinguishing internal calls
+            defined_names: Set[str] = set()
+            self._collect_defined_names(tree.root_node, source, defined_names)
 
-        self._walk_module(
-            tree.root_node,
-            source,
-            rel,
-            nodes,
-            edges,
-            defined_names,
-            parent_class=None,
-        )
+            self._walk_module(
+                tree.root_node,
+                source,
+                rel,
+                nodes,
+                edges,
+                defined_names,
+                parent_class=None,
+            )
 
-        return nodes, edges
+            return nodes, edges
+        except Exception as e:
+            print(f"[GlideIt WARNING] Skipping {file_path}: {e}")
+            return [], []
 
     # ──────────────────────────────────────────────────────────────
     # Internal walkers
@@ -271,7 +372,11 @@ class PythonExtractor(BaseExtractor):
         """Pre-scan: collect all function and class names defined in this file."""
         for child in root.children:
             if child.type in ("function_definition", "decorated_definition"):
-                func = child if child.type == "function_definition" else _first_child_by_type(child, "function_definition")
+                func = (
+                    child
+                    if child.type == "function_definition"
+                    else _first_child_by_type(child, "function_definition")
+                )
                 if func:
                     name_node = func.child_by_field_name("name")
                     if name_node:
@@ -285,7 +390,11 @@ class PythonExtractor(BaseExtractor):
                 if body:
                     for grandchild in body.children:
                         if grandchild.type in ("function_definition", "decorated_definition"):
-                            fn = grandchild if grandchild.type == "function_definition" else _first_child_by_type(grandchild, "function_definition")
+                            fn = (
+                                grandchild
+                                if grandchild.type == "function_definition"
+                                else _first_child_by_type(grandchild, "function_definition")
+                            )
                             if fn:
                                 mn = fn.child_by_field_name("name")
                                 if mn:
@@ -309,19 +418,24 @@ class PythonExtractor(BaseExtractor):
             elif child.type == "function_definition":
                 self._handle_function(child, source, rel, nodes, edges, defined_names, parent_class)
             elif child.type == "decorated_definition":
-                self._handle_decorated(child, source, rel, nodes, edges, defined_names, parent_class)
+                self._handle_decorated(
+                    child, source, rel, nodes, edges, defined_names, parent_class
+                )
             elif child.type == "class_definition":
                 self._handle_class(child, source, rel, nodes, edges, defined_names)
 
-    def _handle_import(self, node: "Node", source: bytes, rel: str, nodes: List, edges: List) -> None:
+    def _handle_import(
+        self, node: "Node", source: bytes, rel: str, nodes: List, edges: List
+    ) -> None:
         """import foo, import foo as bar"""
         for name_node in _children_by_type(node, "dotted_name", "aliased_import"):
-            module_name = _text(name_node, source).split(" as ")[0].strip()
-            node_id = self._make_node_id("import", rel, module_name)
+            _text(name_node, source).split(" as ")[0].strip()
             # We do NOT add import nodes to keep the graph cleaner for now — only record edges
             # (Future: could add import nodes with type="import")
 
-    def _handle_import_from(self, node: "Node", source: bytes, rel: str, nodes: List, edges: List) -> None:
+    def _handle_import_from(
+        self, node: "Node", source: bytes, rel: str, nodes: List, edges: List
+    ) -> None:
         """from foo import bar, baz"""
         pass  # Tracked via edges in function extractors when calls are made
 
@@ -400,19 +514,23 @@ class PythonExtractor(BaseExtractor):
                 # Self-recursion
                 target_id = node_id
                 edge_type = "circular_call"
-            elif base_name in self._STDLIB_PREFIXES or (base_name not in defined_names and "." in called_name):
+            elif base_name in self._STDLIB_PREFIXES or (
+                base_name not in defined_names and "." in called_name
+            ):
                 # External call
                 ext_id = self._make_node_id("ext", rel, called_name)
                 ext_node_exists = any(n["id"] == ext_id for n in nodes)
                 if not ext_node_exists:
-                    nodes.append(self._node(
-                        id=ext_id,
-                        name=called_name,
-                        type="external_call",
-                        file=rel,
-                        line=line,
-                        depth=2,
-                    ))
+                    nodes.append(
+                        self._node(
+                            id=ext_id,
+                            name=called_name,
+                            type="external_call",
+                            file=rel,
+                            line=line,
+                            depth=2,
+                        )
+                    )
                 target_id = ext_id
                 edge_type = "call"
             else:
@@ -421,12 +539,14 @@ class PythonExtractor(BaseExtractor):
                 edge_type = "call"
 
             edge_id = self._make_edge_id(node_id, target_id)
-            edges.append(self._edge(
-                id=edge_id,
-                source=node_id,
-                target=target_id,
-                type=edge_type,
-            ))
+            edges.append(
+                self._edge(
+                    id=edge_id,
+                    source=node_id,
+                    target=target_id,
+                    type=edge_type,
+                )
+            )
 
     def _handle_decorated(
         self,
@@ -443,7 +563,16 @@ class PythonExtractor(BaseExtractor):
         class_node = _first_child_by_type(decorated_node, "class_definition")
 
         if func_node:
-            self._handle_function(func_node, source, rel, nodes, edges, defined_names, parent_class, decorators=decorators)
+            self._handle_function(
+                func_node,
+                source,
+                rel,
+                nodes,
+                edges,
+                defined_names,
+                parent_class,
+                decorators=decorators,
+            )
         elif class_node:
             self._handle_class(class_node, source, rel, nodes, edges, defined_names)
 
@@ -485,4 +614,6 @@ class PythonExtractor(BaseExtractor):
         # Walk class body for methods
         body_node = class_node.child_by_field_name("body")
         if body_node:
-            self._walk_module(body_node, source, rel, nodes, edges, defined_names, parent_class=class_name)
+            self._walk_module(
+                body_node, source, rel, nodes, edges, defined_names, parent_class=class_name
+            )

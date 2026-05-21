@@ -153,7 +153,9 @@ glideit run [options]
 
 **Options**:
 *   `--output <dir>`: Custom destination for the visualization bundle (defaults to `glideit-out/`).
+*   `--single`: Bundle the visualizer as a single, self-contained HTML file containing the JSON data.
 *   `--serve`: Runs the parser, bundles the site, and immediately runs a local preview server.
+*   `--exclude <patterns...>`: Glob patterns to exclude from scanning (e.g. `--exclude tests/ migrations/ "**/__pycache__"`).
 *   `--help`: Details usage and flags.
 
 ### 2. Preview Server (`glideit serve`)

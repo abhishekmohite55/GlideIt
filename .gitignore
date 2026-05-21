@@ -79,6 +79,25 @@ glideit-out/
 
 # Agent / Workspace specific files
 .agents/
+.agent/
+openspec/
 masterDoc/
 Documentation/
 
+# Exceptions to allow committing pre-built renderer assets
+!glideit/renderer/dist/
+!glideit/renderer/dist/**
+!glideit/renderer/dist-single/
+!glideit/renderer/dist-single/**
+
+# AI / Agent tool directories (local only)
+.gemini/
+.kiro/
+.opencode/
+knowledge/
+
+# Ruff cache
+.ruff_cache/
+
+# General logs
+*.log

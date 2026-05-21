@@ -8,7 +8,6 @@ handles circular call detection, normalizes paths, and writes graph-data.json.
 from __future__ import annotations
 
 import json
-import sys
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,6 +49,7 @@ class GraphAssembler:
         language_counts: Dict[str, int],
     ) -> None:
         """Compute depths, build JSON, and write to disk."""
+        self._resolve_and_cleanup_graph()
         self._compute_depths()
         self._mark_circular_edges()
 
@@ -69,6 +69,88 @@ class GraphAssembler:
             json.dumps(graph, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+    def _resolve_and_cleanup_graph(self) -> None:
+        """
+        1. Identify duplicate react component stub nodes (those generated with line=0 during imports)
+           where a real definition exists, and map their IDs to the real definition's ID.
+        2. Remove the stub nodes from self._nodes.
+        3. Resolve all edge sources and targets, and update edge IDs.
+        """
+        # Map of (prefix, name) -> real_node_id
+        real_definitions: Dict[Tuple[str, str], str] = {}
+        for node_id, node in self._nodes.items():
+            if node.get("line", 0) > 0 and node.get("type") not in ("external_call",):
+                parts = node_id.split(":", 2)
+                if len(parts) == 3:
+                    prefix, _, name = parts
+                    real_definitions[(prefix, name)] = node_id
+
+        # Map of stub/unresolved node ID -> real node ID
+        node_id_map: Dict[str, str] = {}
+        nodes_to_remove: Set[str] = set()
+
+        for node_id, node in self._nodes.items():
+            if node.get("line", 0) == 0:
+                parts = node_id.split(":", 2)
+                if len(parts) == 3:
+                    prefix, _, name = parts
+                    real_id = real_definitions.get((prefix, name))
+                    if real_id:
+                        node_id_map[node_id] = real_id
+                        nodes_to_remove.add(node_id)
+
+        # Remove duplicate stub nodes from graph
+        for node_id in nodes_to_remove:
+            self._nodes.pop(node_id, None)
+
+        # Build name_to_ids for remaining nodes to resolve other unmapped edges
+        name_to_ids: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        for node_id, node in self._nodes.items():
+            parts = node_id.split(":", 2)
+            if len(parts) == 3:
+                prefix, _, name = parts
+                name_to_ids[(prefix, name)].append(node_id)
+
+        # Update edges
+        resolved_edges: List[Dict[str, Any]] = []
+        resolved_edge_ids: Set[str] = set()
+
+        for edge in self._edges:
+            source = edge["source"]
+            target = edge["target"]
+
+            # Apply stub mapping
+            if source in node_id_map:
+                source = node_id_map[source]
+            if target in node_id_map:
+                target = node_id_map[target]
+
+            # General name-based resolution for missing target nodes
+            if target not in self._nodes:
+                parts = target.split(":", 2)
+                if len(parts) == 3:
+                    prefix, _, name = parts
+                    candidates = name_to_ids.get((prefix, name), [])
+                else:
+                    candidates = []
+                if candidates:
+                    target = candidates[0]
+
+            edge["source"] = source
+            edge["target"] = target
+            edge["id"] = self._make_edge_id(source, target)
+
+            if edge["id"] not in resolved_edge_ids:
+                resolved_edges.append(edge)
+                resolved_edge_ids.add(edge["id"])
+
+        self._edges = resolved_edges
+        self._edge_ids = resolved_edge_ids
+
+    @staticmethod
+    def _make_edge_id(source: str, target: str) -> str:
+        return f"{source}--{target}"
 
     # ──────────────────────────────────────────
     # Depth computation  (BFS from entry points)

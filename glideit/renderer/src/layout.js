@@ -1,7 +1,3 @@
-import ELK from 'elkjs/lib/elk.bundled.js';
-
-const elk = new ELK();
-
 // Default ELK options for a clean hierarchical layout
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
@@ -21,7 +17,7 @@ const ELK_OPTIONS = {
  * @param {Array} edges   - ReactFlow edge objects
  * @param {'DOWN'|'RIGHT'} direction - layout direction
  */
-export async function getElkLayout(nodes, edges, direction = 'DOWN') {
+export function getElkLayout(nodes, edges, direction = 'DOWN') {
   const options = { ...ELK_OPTIONS, 'elk.direction': direction };
 
   // Build the ELK graph format
@@ -40,20 +36,38 @@ export async function getElkLayout(nodes, edges, direction = 'DOWN') {
     })),
   };
 
-  // Run the layout
-  const layouted = await elk.layout(elkGraph);
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      new URL('./elkWorker.js', import.meta.url),
+      { type: 'module' }
+    );
 
-  // Map the computed positions back onto the ReactFlow node objects
-  const layoutedNodes = nodes.map(node => {
-    const elkNode = layouted.children.find(c => c.id === node.id);
-    return {
-      ...node,
-      position: {
-        x: elkNode?.x ?? node.position?.x ?? 0,
-        y: elkNode?.y ?? node.position?.y ?? 0,
-      },
+    worker.onmessage = (event) => {
+      worker.terminate();
+      if (event.data.success) {
+        const layouted = event.data.result;
+        // Map the computed positions back onto the ReactFlow node objects
+        const layoutedNodes = nodes.map(node => {
+          const elkNode = layouted.children.find(c => c.id === node.id);
+          return {
+            ...node,
+            position: {
+              x: elkNode?.x ?? node.position?.x ?? 0,
+              y: elkNode?.y ?? node.position?.y ?? 0,
+            },
+          };
+        });
+        resolve({ nodes: layoutedNodes, edges });
+      } else {
+        reject(new Error(event.data.error));
+      }
     };
-  });
 
-  return { nodes: layoutedNodes, edges };
+    worker.onerror = (err) => {
+      worker.terminate();
+      reject(err);
+    };
+
+    worker.postMessage({ graph: elkGraph });
+  });
 }

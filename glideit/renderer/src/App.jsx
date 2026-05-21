@@ -3,6 +3,7 @@ import Navbar from './components/Navbar.jsx'
 import CodeFlowPage from './components/CodeFlowPage.jsx'
 import ApiPage from './components/ApiPage.jsx'
 import JsxPage from './components/JsxPage.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 export default function App() {
   const [activePage, setActivePage] = useState('codeflow')
@@ -55,9 +56,21 @@ export default function App() {
 
       {!loading && !error && graphData && (
         <div className="page-container">
-          {activePage === 'codeflow' && <CodeFlowPage data={graphData} />}
-          {activePage === 'api' && <ApiPage data={graphData} />}
-          {activePage === 'jsx' && <JsxPage data={graphData} />}
+          {activePage === 'codeflow' && (
+            <ErrorBoundary>
+              <CodeFlowPage data={graphData} />
+            </ErrorBoundary>
+          )}
+          {activePage === 'api' && (
+            <ErrorBoundary>
+              <ApiPage data={graphData} />
+            </ErrorBoundary>
+          )}
+          {activePage === 'jsx' && (
+            <ErrorBoundary>
+              <JsxPage data={graphData} />
+            </ErrorBoundary>
+          )}
         </div>
       )}
     </div>
