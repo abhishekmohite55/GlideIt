@@ -87,10 +87,24 @@ function CodeFlowContent({ data }) {
 
   const [layoutedNodes, setLayoutedNodes] = useState([])
   const [layoutedEdges, setLayoutedEdges] = useState([])
+  const [layoutLoading, setLayoutLoading] = useState(true)
 
   const [hoveredPath, setHoveredPath] = useState([])
   const [lockedPath, setLockedPath] = useState(null)
   const hoverTimeoutRef = useRef(null)
+  const pathCacheRef = useRef(new Map())
+
+  useEffect(() => {
+    pathCacheRef.current = new Map()
+  }, [filteredNodes, filteredEdges])
+
+  const getCachedPathToRoot = useCallback((nodeId) => {
+    const cache = pathCacheRef.current
+    if (cache.has(nodeId)) return cache.get(nodeId)
+    const path = findPathToRoot(nodeId, filteredNodes, filteredEdges)
+    cache.set(nodeId, path)
+    return path
+  }, [filteredNodes, filteredEdges])
 
   const highlightedPathIds = useMemo(() => {
     const path = hoveredPath.length > 0 ? hoveredPath : lockedPath
@@ -138,6 +152,7 @@ function CodeFlowContent({ data }) {
   // Layout runner
   useEffect(() => {
     if (rawNodes.length === 0) return
+    setLayoutLoading(true)
 
     const vNodes = rawNodes.filter(n => (n.data?.depth ?? 0) <= visibleDepth)
     const vNodeIds = new Set(vNodes.map(n => n.id))
@@ -147,8 +162,12 @@ function CodeFlowContent({ data }) {
       .then(({ nodes: outNodes, edges: outEdges }) => {
         setLayoutedNodes(outNodes)
         setLayoutedEdges(outEdges)
+        setLayoutLoading(false)
       })
-      .catch(err => console.error('ELK layout failed:', err))
+      .catch(err => {
+        console.error('ELK layout failed:', err)
+        setLayoutLoading(false)
+      })
   }, [rawNodes, rawEdges, layoutDir, layoutTrigger, visibleDepth])
 
   // Styling applier
@@ -233,9 +252,9 @@ function CodeFlowContent({ data }) {
   // Arrow key scrolling listener
   useEffect(() => {
     const handleScroll = (e) => {
-      const { dy } = e.detail
+      const { dx = 0, dy = 0 } = e.detail
       const vp = getViewport()
-      setViewport({ ...vp, y: vp.y - dy }, { duration: 100 })
+      setViewport({ x: vp.x - dx, y: vp.y - dy }, { duration: 100 })
     }
     window.addEventListener('glideit-scroll', handleScroll)
     return () => window.removeEventListener('glideit-scroll', handleScroll)
@@ -304,25 +323,22 @@ function CodeFlowContent({ data }) {
 
   const wrapperRef = useRef(null)
 
-  // Native wheel event interceptor for Shift+Scroll horizontal pan
+  // Prevent page scroll on wheel events inside the canvas
   useEffect(() => {
     const wrapper = wrapperRef.current
     if (!wrapper) return
 
     const handleWheel = (e) => {
+      e.preventDefault()
+
       if (e.shiftKey || e.altKey) {
-        // Prevent ReactFlow's zoom
         e.stopPropagation()
-        e.preventDefault()
-        
-        // Use deltaY for horizontal panning since mouse wheels often only have Y
         const dx = e.deltaX !== 0 ? e.deltaX : e.deltaY;
         const vp = getViewport()
         setViewport({ ...vp, x: vp.x - dx }, { duration: 0 })
       }
     }
 
-    // Use capture: true to intercept before ReactFlow (d3-zoom)
     wrapper.addEventListener('wheel', handleWheel, { capture: true, passive: false })
     return () => wrapper.removeEventListener('wheel', handleWheel, { capture: true })
   }, [getViewport, setViewport])
@@ -363,8 +379,8 @@ function CodeFlowContent({ data }) {
             clearTimeout(hoverTimeoutRef.current)
           }
           hoverTimeoutRef.current = setTimeout(() => {
-            setHoveredPath(findPathToRoot(node.id, filteredNodes, filteredEdges))
-          }, 400)
+            setHoveredPath(getCachedPathToRoot(node.id))
+          }, 500)
         }}
         onNodeMouseLeave={() => {
           if (hoverTimeoutRef.current) {
@@ -405,6 +421,13 @@ function CodeFlowContent({ data }) {
           />
         )}
       </ReactFlow>
+
+      {layoutLoading && (
+        <div className="layout-loading-overlay">
+          <div className="loading-spinner" />
+          <span>Computing layout…</span>
+        </div>
+      )}
 
       <CanvasToolbar
         visibleDepth={visibleDepth}

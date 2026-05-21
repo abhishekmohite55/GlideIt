@@ -47,8 +47,8 @@ class GraphAssembler:
         path: Path,
         file_count: int,
         language_counts: Dict[str, int],
-    ) -> None:
-        """Compute depths, build JSON, and write to disk."""
+    ) -> str:
+        """Compute depths, build JSON, write to disk, and return the JSON string."""
         self._resolve_and_cleanup_graph()
         self._compute_depths()
         self._mark_circular_edges()
@@ -65,10 +65,9 @@ class GraphAssembler:
             "edges": self._edges,
         }
 
-        path.write_text(
-            json.dumps(graph, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        json_str = json.dumps(graph, indent=2, ensure_ascii=False)
+        path.write_text(json_str, encoding="utf-8")
+        return json_str
 
     def _resolve_and_cleanup_graph(self) -> None:
         """

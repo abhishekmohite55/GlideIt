@@ -93,7 +93,7 @@ export function useKeyBindings({
       return;
     }
 
-    // Arrow keys: scroll canvas
+    // Arrow keys: scroll canvas (prevent default page scroll)
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dy: -SCROLL_AMOUNT } }));
@@ -102,6 +102,16 @@ export function useKeyBindings({
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dy: SCROLL_AMOUNT } }));
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dx: -SCROLL_AMOUNT } }));
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dx: SCROLL_AMOUNT } }));
       return;
     }
 

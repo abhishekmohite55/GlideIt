@@ -97,22 +97,22 @@ def cmd_run(args: argparse.Namespace) -> int:
         except Exception as exc:
             print(_yellow(f"  [warn] Skipping {fp.relative_to(repo_root)}: {exc}"))
 
-    # ── Build graph JSON ──────────────────────
+    # ── Build output ──────────────────────────
     print("  Building output...")
     output_dir.mkdir(parents=True, exist_ok=True)
     graph_json_path = output_dir / "graph-data.json"
-    assembler.serialize(
+
+    # Write graph data first, then pass as string to build_renderer
+    graph_json_str = assembler.serialize(
         path=graph_json_path,
         file_count=len(py_files) + len(jsx_files),
         language_counts={"python": len(py_files), "jsx": len(jsx_files)},
     )
 
-    # ── Renderer build ────────────────────────
     try:
-        build_renderer(output_dir, graph_json_path, single_file=args.single)
+        build_renderer(output_dir, graph_data=graph_json_str, single_file=args.single)
     except Exception as exc:
         print(_yellow(f"  [warn] Renderer build failed: {exc}"))
-        print(_yellow("  graph-data.json was written. You can build the renderer manually."))
 
     if args.single:
         print(

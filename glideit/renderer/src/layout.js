@@ -4,6 +4,7 @@ const ELK_OPTIONS = {
   'elk.direction': 'DOWN',
   'elk.spacing.nodeNode': '60',
   'elk.layered.spacing.nodeNodeBetweenLayers': '100',
+  'elk.spacing.componentComponent': '100',
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
   'elk.edgeRouting': 'ORTHOGONAL',
@@ -36,38 +37,52 @@ export function getElkLayout(nodes, edges, direction = 'DOWN') {
     })),
   };
 
-  return new Promise((resolve, reject) => {
+  try {
     const worker = new Worker(
       new URL('./elkWorker.js', import.meta.url),
       { type: 'module' }
     );
 
-    worker.onmessage = (event) => {
-      worker.terminate();
-      if (event.data.success) {
-        const layouted = event.data.result;
-        // Map the computed positions back onto the ReactFlow node objects
-        const layoutedNodes = nodes.map(node => {
-          const elkNode = layouted.children.find(c => c.id === node.id);
-          return {
-            ...node,
-            position: {
-              x: elkNode?.x ?? node.position?.x ?? 0,
-              y: elkNode?.y ?? node.position?.y ?? 0,
-            },
-          };
-        });
-        resolve({ nodes: layoutedNodes, edges });
-      } else {
-        reject(new Error(event.data.error));
-      }
-    };
+    return new Promise((resolve, reject) => {
+      worker.onmessage = (event) => {
+        worker.terminate();
+        if (event.data.success) {
+          const layouted = event.data.result;
+          const layoutedNodes = mapLayoutResult(layouted, nodes);
+          resolve({ nodes: layoutedNodes, edges });
+        } else {
+          reject(new Error(event.data.error));
+        }
+      };
 
-    worker.onerror = (err) => {
-      worker.terminate();
-      reject(err);
-    };
+      worker.onerror = () => {
+        worker.terminate();
+        fallbackLayout(elkGraph, nodes, edges).then(resolve).catch(reject);
+      };
 
-    worker.postMessage({ graph: elkGraph });
+      worker.postMessage({ graph: elkGraph });
+    });
+  } catch (_err) {
+    return fallbackLayout(elkGraph, nodes, edges);
+  }
+}
+
+function mapLayoutResult(layouted, nodes) {
+  return nodes.map(node => {
+    const elkNode = layouted.children.find(c => c.id === node.id);
+    return {
+      ...node,
+      position: {
+        x: elkNode?.x ?? node.position?.x ?? 0,
+        y: elkNode?.y ?? node.position?.y ?? 0,
+      },
+    };
   });
+}
+
+async function fallbackLayout(elkGraph, nodes, edges) {
+  const { default: ELK } = await import('elkjs/lib/elk.bundled.js');
+  const elk = new ELK();
+  const result = await elk.layout(elkGraph);
+  return { nodes: mapLayoutResult(result, nodes), edges };
 }
