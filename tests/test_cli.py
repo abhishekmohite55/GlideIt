@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from glideit.cli import cmd_run, build_parser
+from glideit.cli import build_parser, cmd_run
 
 
 class TestCmdRun:

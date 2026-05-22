@@ -16,9 +16,9 @@ import sys
 import time
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from glideit import __version__
+
+logger = logging.getLogger(__name__)
 
 MAX_PORT_ATTEMPTS = 100
 

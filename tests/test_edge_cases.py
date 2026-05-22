@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from glideit.extractors.python_extractor import PythonExtractor
 from glideit.graph import GraphAssembler
 
@@ -26,10 +24,8 @@ class TestEmptyCodebase:
     def test_graph_assembler_handles_empty_input(self):
         """GraphAssembler should handle empty nodes/edges without errors."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            root = Path(tmpdir)
             assembler = GraphAssembler(Path(tmpdir))
             assembler.add([], [])
-            output_path = root / "output.json"
             result = assembler.serialize(file_count=0, language_counts={})
             assert result is not None
 
