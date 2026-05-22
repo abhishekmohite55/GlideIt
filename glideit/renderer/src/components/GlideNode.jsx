@@ -22,6 +22,14 @@ const METHOD_COLORS = {
   PATCH:  '#AA00FF',
 }
 
+const NODE_STYLES = {
+  python_function: { background: '#1A1A2E', borderColor: '#1E90FF' },
+  flask_route:     { background: '#1A2E1A', borderColor: '#00C853' },
+  react_component: { background: '#2E1A2E', borderColor: '#AA00FF' },
+  external_call:   { background: '#2A2A2A', borderColor: '#555555' },
+  python_class:    { background: '#2A1A1A', borderColor: '#FF8C00' },
+}
+
 function NodeBadge({ type }) {
   return <span className={`node-badge node-badge--${type}`}>{TYPE_LABELS[type] || type}</span>
 }
@@ -61,6 +69,7 @@ export default function GlideNode({ data }) {
     props = [],
     depth,
     selected,
+    isMainNode,
   } = data
 
   const expanded = data.expanded !== undefined ? data.expanded : localExpanded
@@ -87,14 +96,6 @@ export default function GlideNode({ data }) {
     setExpanded(prev => !prev)
   }
 
-  const NODE_STYLES = {
-    python_function: { background: '#1A1A2E', borderColor: '#1E90FF' },
-    flask_route:     { background: '#1A2E1A', borderColor: '#00C853' },
-    react_component: { background: '#2E1A2E', borderColor: '#AA00FF' },
-    external_call:   { background: '#2A2A2A', borderColor: '#555555' },
-    python_class:    { background: '#2A1A1A', borderColor: '#FF8C00' },
-  }
-
   const typeStyle = NODE_STYLES[type] || { background: '#161616', borderColor: '#2A2A2A' }
   const isEntryPoint = depth === 0
   const clusterColor = data.clusterColor ?? null
@@ -103,9 +104,16 @@ export default function GlideNode({ data }) {
     background: typeStyle.background,
     borderColor: typeStyle.borderColor,
     borderLeftColor: typeStyle.borderColor,
-    outline: isEntryPoint && clusterColor ? `2px solid ${clusterColor}` : 'none',
+    outline: isMainNode
+      ? '2px solid #FFD700'
+      : isEntryPoint && clusterColor
+        ? `2px solid ${clusterColor}`
+        : 'none',
     outlineOffset: '3px',
     borderRadius: '8px',
+    boxShadow: isMainNode
+      ? '0 0 12px rgba(255, 215, 0, 0.3), 0 0 24px rgba(255, 215, 0, 0.1)'
+      : 'none',
   }
 
   return (
@@ -126,8 +134,20 @@ export default function GlideNode({ data }) {
         <div className="node-header-left">
           <NodeBadge type={type} />
           {isFlask && <HttpMethodBadge method={http_method} />}
+          {isMainNode && (
+            <span className="main-badge" style={{
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              color: '#000',
+              fontSize: '9px',
+              fontWeight: 'bold',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              letterSpacing: '0.05em',
+            }}>
+              MAIN
+            </span>
+          )}
         </div>
-        <span className="node-depth">d{depth}</span>
       </div>
 
       {/* Name */}

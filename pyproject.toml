@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "glideit"
-version = "1.0.0"
+dynamic = ["version"]
 description = "CLI tool that parses a Python/JSX codebase and produces an interactive visual graph"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -24,6 +24,7 @@ dependencies = [
     "tree-sitter>=0.22,<0.24",
     "tree-sitter-python>=0.22,<0.24",
     "tree-sitter-javascript>=0.22,<0.24",
+    "tree-sitter-typescript>=0.22,<0.24",
     "pathspec>=0.12",
 ]
 
@@ -42,5 +43,8 @@ glideit = "glideit.cli:main"
 where = ["."]
 include = ["glideit*"]
 
+[tool.setuptools.dynamic]
+version = {attr = "glideit.__version__"}
+
 [tool.setuptools.package-data]
-glideit = ["renderer/**/*"]
+glideit = ["renderer/dist/**/*", "renderer/dist-single/**/*"]

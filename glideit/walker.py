@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Tuple
+
 
 try:
     import pathspec
@@ -42,7 +42,7 @@ _JSX_EXTS = {".jsx", ".js", ".tsx", ".ts"}
 class Walker:
     """Recursively walks a directory, honouring .gitignore rules."""
 
-    def __init__(self, root: Path, exclude_patterns: List[str] | None = None) -> None:
+    def __init__(self, root: Path, exclude_patterns: list[str] | None = None) -> None:
         self.root = root
         self.exclude_patterns = exclude_patterns or []
         self._spec = self._load_spec()
@@ -51,10 +51,10 @@ class Walker:
     # Public API
     # ──────────────────────────────────────────
 
-    def collect(self) -> Tuple[List[Path], List[Path]]:
+    def collect(self) -> tuple[list[Path], list[Path]]:
         """Return (py_files, jsx_files) — both as absolute Paths."""
-        py_files: List[Path] = []
-        jsx_files: List[Path] = []
+        py_files: list[Path] = []
+        jsx_files: list[Path] = []
 
         for path in self._walk(self.root):
             ext = path.suffix.lower()
@@ -70,7 +70,7 @@ class Walker:
     # ──────────────────────────────────────────
 
     def _load_spec(self):
-        """Load pathspec from .gitignore or fall back to built-in list."""
+        """Load pathspec from .gitignore and merge with built-in ignore list."""
         if pathspec is None:
             print(
                 "[warn] pathspec not installed; using built-in ignore list.",
@@ -78,19 +78,21 @@ class Walker:
             )
             return None
 
+        # Always start with built-in ignores
+        patterns = list(_BUILTIN_IGNORES)
+
         gitignore = self.root / ".gitignore"
         try:
             if gitignore.exists():
-                patterns = gitignore.read_text(encoding="utf-8", errors="ignore").splitlines()
+                gitignore_patterns = gitignore.read_text(encoding="utf-8", errors="ignore").splitlines()
+                patterns.extend(gitignore_patterns)
             else:
                 print(
                     "[notice] No .gitignore found; using built-in ignore list.",
                     file=sys.stderr,
                 )
-                patterns = list(_BUILTIN_IGNORES)
         except Exception as e:
             print(f"[GlideIt WARNING] Skipping .gitignore: {e}")
-            patterns = list(_BUILTIN_IGNORES)
 
         # Merge custom exclude patterns
         patterns.extend(self.exclude_patterns)

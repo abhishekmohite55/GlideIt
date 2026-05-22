@@ -10,11 +10,17 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
+import subprocess
 import sys
 import time
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 from glideit import __version__
+
+MAX_PORT_ATTEMPTS = 100
 
 # ──────────────────────────────────────────────
 # Colour helpers (no deps)
@@ -58,7 +64,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     output_dir = Path(args.output).resolve()
 
     if not repo_root.exists():
-        print(_red(f"[error] Repo root does not exist: {repo_root}"), file=sys.stderr)
+        logger.error(_red(f"Repo root does not exist: {repo_root}"))
         return 1
 
     print(_bold(_cyan("GlideIt") + " — scanning project..."))
@@ -79,40 +85,56 @@ def cmd_run(args: argparse.Namespace) -> int:
     py_extractor = PythonExtractor(repo_root)
     jsx_extractor = JSXExtractor(repo_root)
 
+    def _process_python_file(fp: Path) -> None:
+        source = fp.read_bytes()
+        nodes, edges = py_extractor.extract(fp, source)
+        assembler.add(nodes, edges)
+
+    def _process_jsx_file(fp: Path) -> None:
+        source = fp.read_bytes()
+        nodes, edges = jsx_extractor.extract(fp, source)
+        assembler.add(nodes, edges)
+
     # Python
-    for fp in py_files:
+    print(f"  {_bold('Processing')} Python files...")
+    for i, fp in enumerate(py_files, 1):
         try:
-            source = fp.read_bytes()
-            nodes, edges = py_extractor.extract(fp, source)
-            assembler.add(nodes, edges)
-        except Exception as exc:
+            _process_python_file(fp)
+            if i % 10 == 0 or i == len(py_files):
+                print(f"    Progress: {i}/{len(py_files)} files processed")
+        except (SyntaxError, ValueError, OSError) as exc:
             print(_yellow(f"  [warn] Skipping {fp.relative_to(repo_root)}: {exc}"))
 
     # JSX / JS / TSX
-    for fp in jsx_files:
+    print(f"  {_bold('Processing')} JSX/JS/TSX files...")
+    for i, fp in enumerate(jsx_files, 1):
         try:
-            source = fp.read_bytes()
-            nodes, edges = jsx_extractor.extract(fp, source)
-            assembler.add(nodes, edges)
-        except Exception as exc:
+            _process_jsx_file(fp)
+            if i % 10 == 0 or i == len(jsx_files):
+                print(f"    Progress: {i}/{len(jsx_files)} files processed")
+        except (SyntaxError, ValueError, OSError) as exc:
             print(_yellow(f"  [warn] Skipping {fp.relative_to(repo_root)}: {exc}"))
+
+    print(f"  {_bold('Total files parsed')}: {len(py_files) + len(jsx_files)}")
 
     # ── Build output ──────────────────────────
     print("  Building output...")
     output_dir.mkdir(parents=True, exist_ok=True)
-    graph_json_path = output_dir / "graph-data.json"
 
-    # Write graph data first, then pass as string to build_renderer
+    # Build the graph JSON string (no disk write yet)
     graph_json_str = assembler.serialize(
-        path=graph_json_path,
         file_count=len(py_files) + len(jsx_files),
         language_counts={"python": len(py_files), "jsx": len(jsx_files)},
     )
 
+    # Build/copy renderer assets FIRST (this cleans output_dir and copies fresh assets)
     try:
         build_renderer(output_dir, graph_data=graph_json_str, single_file=args.single)
-    except Exception as exc:
-        print(_yellow(f"  [warn] Renderer build failed: {exc}"))
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        logger.error(_red(f"Renderer build failed: {exc}"))
+        return 1
+
+    # graph-data.json is now written by build_renderer as the final step
 
     if args.single:
         print(
@@ -145,7 +167,7 @@ def start_server(directory: Path, port: int = 8000) -> int:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=str(directory), **kwargs)
 
-        def log_message(self, format, *args):
+        def log_message(self, msg_format, *args):
             # Suppress request spam in the terminal
             pass
 
@@ -153,7 +175,7 @@ def start_server(directory: Path, port: int = 8000) -> int:
     actual_port = port
     server = None
 
-    while attempts < 100:
+    while attempts < MAX_PORT_ATTEMPTS:
         try:
             server = http.server.ThreadingHTTPServer(("", actual_port), Handler)
             break
@@ -162,7 +184,7 @@ def start_server(directory: Path, port: int = 8000) -> int:
             attempts += 1
 
     if server is None:
-        print(_red("[error] Could not find a free port to bind the server."), file=sys.stderr)
+        logger.error(_red("Could not find a free port to bind the server."))
         return 1
 
     print(_green(f"  Starting local server at http://localhost:{actual_port}"))
@@ -178,8 +200,8 @@ def start_server(directory: Path, port: int = 8000) -> int:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:
         print(_bold(_cyan("\nServer stopped.")))
-    finally:
         server.shutdown()
+    finally:
         server.server_close()
     return 0
 
@@ -188,7 +210,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     """Serve the generated visualization directory."""
     directory = Path(args.directory).resolve()
     if not directory.exists():
-        print(_red(f"[error] Directory to serve does not exist: {directory}"), file=sys.stderr)
+        logger.error(_red(f"Directory to serve does not exist: {directory}"))
         return 1
     index_html = directory / "index.html"
     if not index_html.exists():

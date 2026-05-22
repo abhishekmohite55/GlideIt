@@ -25,11 +25,17 @@ export function getElkLayout(nodes, edges, direction = 'DOWN') {
   const elkGraph = {
     id: 'root',
     layoutOptions: options,
-    children: nodes.map(node => ({
-      id: node.id,
-      width: node.width ?? 220,
-      height: node.height ?? 80,
-    })),
+    children: nodes.map(node => {
+      const isEntryPoint = node.data?.depth === 0;
+      return {
+        id: node.id,
+        width: node.width ?? 220,
+        height: node.height ?? 80,
+        ...(isEntryPoint && {
+          layoutOptions: { 'elk.priority': '1' },
+        }),
+      };
+    }),
     edges: edges.map(edge => ({
       id: edge.id,
       sources: [edge.source],
@@ -62,7 +68,7 @@ export function getElkLayout(nodes, edges, direction = 'DOWN') {
 
       worker.postMessage({ graph: elkGraph });
     });
-  } catch (_err) {
+  } catch (_) {
     return fallbackLayout(elkGraph, nodes, edges);
   }
 }

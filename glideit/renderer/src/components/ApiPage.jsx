@@ -4,7 +4,7 @@
  * Each card shows HTTP method badge, route path, handler name.
  * Expanding shows the call chain detected from the graph.
  */
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const METHOD_COLORS = {
   GET:    { bg: 'rgba(0,200,83,0.15)', border: '#00C853', text: '#00C853' },
@@ -98,7 +98,7 @@ function RouteCard({ route, allNodes, allEdges }) {
             <div className="api-detail-row">
               <span className="api-detail-label">Calls</span>
               <div className="api-call-chain">
-                {callChain.map((n, i) => (
+                {callChain.map((n) => (
                   <div key={n.id} className="api-call-chain-item">
                     <span className="call-chain-arrow">→</span>
                     <code className="call-chain-name">{n.name}</code>

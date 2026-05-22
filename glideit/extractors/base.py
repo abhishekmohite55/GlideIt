@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 
 class BaseExtractor(ABC):
@@ -26,7 +26,7 @@ class BaseExtractor(ABC):
         self,
         file_path: Path,
         source: bytes,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Parse ``source`` from ``file_path`` and return (nodes, edges).
 
@@ -65,16 +65,16 @@ class BaseExtractor(ABC):
         type: str,
         file: str,
         line: int,
-        params: List[Dict[str, Any]] | None = None,
-        returns: Dict[str, Any] | None = None,
+        params: list[dict[str, Any]] | None = None,
+        returns: dict[str, Any] | None = None,
         docstring: str | None = None,
         http_method: str | None = None,
         route_path: str | None = None,
-        hooks: List[str] | None = None,
-        props: List[Dict[str, Any]] | None = None,
+        hooks: list[str] | None = None,
+        props: list[dict[str, Any]] | None = None,
         depth: int = 0,
         **extra: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build a node dict conforming to the graph schema."""
         return {
             "id": id,
@@ -102,7 +102,7 @@ class BaseExtractor(ABC):
         type: str,
         variable_name: str | None = None,
         depth: int = 1,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build an edge dict conforming to the graph schema."""
         return {
             "id": id,

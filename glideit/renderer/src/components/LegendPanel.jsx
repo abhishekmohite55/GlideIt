@@ -197,19 +197,6 @@ export function LegendPanel({ isOpen, onClose }) {
                 </div>
               ))}
             </div>
-
-            {/* Depth hint */}
-            <div style={{
-              marginTop: '14px',
-              padding: '8px 10px',
-              background: '#1a1a2e',
-              borderRadius: '6px',
-              color: '#7ab5ff',
-              fontSize: '11px',
-              lineHeight: 1.5,
-            }}>
-              💡 Use the depth slider at the bottom to show only the call levels you care about.
-            </div>
           </>
         )}
 

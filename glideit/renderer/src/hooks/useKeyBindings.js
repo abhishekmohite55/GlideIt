@@ -68,6 +68,13 @@ export function useKeyBindings({
       return;
     }
 
+    // Select All: Ctrl+A / Cmd+A
+    if (ctrl && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      onSelectAll?.();
+      return;
+    }
+
     // Enter: expand selected node
     if (e.key === 'Enter') {
       e.preventDefault();

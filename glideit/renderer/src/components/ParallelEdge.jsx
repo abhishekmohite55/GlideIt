@@ -14,6 +14,10 @@ export default function ParallelEdge({
 }) {
   const offset = data?.offset || 0;
   
+  // Cap offset to prevent visual overflow with many parallel edges
+  const MAX_OFFSET = 5;
+  const cappedOffset = Math.min(offset, MAX_OFFSET);
+  
   // Calculate vector from source to target
   const dx = targetX - sourceX;
   const dy = targetY - sourceY;
@@ -27,8 +31,8 @@ export default function ParallelEdge({
     ny = dx / length;
   }
 
-  // Spread parallel edges by 12px per index
-  const shift = offset * 12;
+  // Spread parallel edges by 12px per index (capped)
+  const shift = cappedOffset * 12;
 
   // Apply shift to both source and target anchors
   const shiftedSourceX = sourceX + nx * shift;

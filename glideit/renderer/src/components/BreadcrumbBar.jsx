@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * Displays the call chain path at the top of the canvas.

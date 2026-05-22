@@ -1,5 +1,5 @@
 """
-JSX/JS/TS extractor — uses tree-sitter-javascript to parse .jsx/.js/.tsx/.ts files.
+JSX/JS/TS/TSX extractor — uses tree-sitter-javascript and tree-sitter-typescript to parse .jsx/.js/.tsx/.ts files.
 
 Extracts:
   - React functional components (name, file, props, hooks)
@@ -14,21 +14,27 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
 from glideit.extractors.base import BaseExtractor
 
 # ── tree-sitter setup ─────────────────────────────────────────────────────────
 try:
     import tree_sitter_javascript as tsjs
+    import tree_sitter_typescript as tstypescript
     from tree_sitter import Language, Node, Parser
 
     JS_LANGUAGE = Language(tsjs.language())
-    _PARSER = Parser(JS_LANGUAGE)
+    TS_LANGUAGE = Language(tstypescript.language_typescript())
+    TSX_LANGUAGE = Language(tstypescript.language_tsx())
+
+    _JS_PARSER = Parser(JS_LANGUAGE)
+    _TS_PARSER = Parser(TS_LANGUAGE)
+    _TSX_PARSER = Parser(TSX_LANGUAGE)
     _TS_AVAILABLE = True
 except Exception as _e:
     _TS_AVAILABLE = False
-    print(f"[warn] tree-sitter-javascript unavailable: {_e}", file=sys.stderr)
+    print(f"[warn] tree-sitter-javascript/typescript unavailable: {_e}", file=sys.stderr)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -45,13 +51,13 @@ def _first_child_by_type(node: "Node", *types: str) -> Optional["Node"]:
     return None
 
 
-def _children_by_type(node: "Node", *types: str) -> List["Node"]:
+def _children_by_type(node: "Node", *types: str) -> list["Node"]:
     return [c for c in node.children if c.type in types]
 
 
-def _find_all(node: "Node", *types: str) -> List["Node"]:
+def _find_all(node: "Node", *types: str) -> list["Node"]:
     """Recursively find all descendant nodes of given types."""
-    results: List["Node"] = []
+    results: list["Node"] = []
 
     def walk(n: "Node") -> None:
         if n.type in types:
@@ -102,10 +108,10 @@ def _is_component_name(name: str) -> bool:
     return bool(name) and name[0].isupper()
 
 
-def _collect_hooks(body_node: "Node", source: bytes) -> List[str]:
+def _collect_hooks(body_node: "Node", source: bytes) -> list[str]:
     """Collect all hook calls (use* pattern) within a function body."""
-    hooks: List[str] = []
-    seen: Set[str] = set()
+    hooks: list[str] = []
+    seen: set[str] = set()
     for call in _find_all(body_node, "call_expression"):
         func = call.child_by_field_name("function")
         if func is None:
@@ -120,10 +126,10 @@ def _collect_hooks(body_node: "Node", source: bytes) -> List[str]:
     return hooks
 
 
-def _collect_jsx_children(body_node: "Node", source: bytes) -> List[str]:
+def _collect_jsx_children(body_node: "Node", source: bytes) -> list[str]:
     """Collect all JSX element names used in a component body (render relationships)."""
-    used: List[str] = []
-    seen: Set[str] = set()
+    used: list[str] = []
+    seen: set[str] = set()
     for elem in _find_all(body_node, "jsx_opening_element", "jsx_self_closing_element"):
         name_node = elem.child_by_field_name("name")
         if name_node is None:
@@ -140,9 +146,9 @@ def _collect_jsx_children(body_node: "Node", source: bytes) -> List[str]:
     return used
 
 
-def _collect_fetch_axios(body_node: "Node", source: bytes) -> List[Dict[str, Any]]:
+def _collect_fetch_axios(body_node: "Node", source: bytes) -> list[dict[str, Any]]:
     """Collect fetch() and axios calls within a function body."""
-    external_calls: List[Dict[str, Any]] = []
+    external_calls: list[dict[str, Any]] = []
     for call in _find_all(body_node, "call_expression"):
         func = call.child_by_field_name("function")
         if func is None:
@@ -170,9 +176,9 @@ def _collect_fetch_axios(body_node: "Node", source: bytes) -> List[Dict[str, Any
     return external_calls
 
 
-def _collect_props_from_params(params_node: "Node", source: bytes) -> List[Dict[str, Any]]:
+def _collect_props_from_params(params_node: "Node", source: bytes) -> list[dict[str, Any]]:
     """Extract prop names from function parameters (destructuring or single props object)."""
-    props: List[Dict[str, Any]] = []
+    props: list[dict[str, Any]] = []
     if params_node is None:
         return props
 
@@ -204,21 +210,26 @@ class JSXExtractor(BaseExtractor):
         self,
         file_path: Path,
         source: bytes,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         if not _TS_AVAILABLE:
             return [], []
 
         try:
-            try:
-                tree = _PARSER.parse(source)
-            except Exception as exc:
-                raise RuntimeError(f"tree-sitter parse error: {exc}") from exc
+            # Select parser based on file extension
+            ext = file_path.suffix.lower()
+            if ext == ".ts":
+                tree = _TS_PARSER.parse(source)
+            elif ext == ".tsx":
+                tree = _TSX_PARSER.parse(source)
+            else:
+                tree = _JS_PARSER.parse(source)
 
             rel = self._rel(file_path)
-            nodes: List[Dict[str, Any]] = []
-            edges: List[Dict[str, Any]] = []
+            nodes: list[dict[str, Any]] = []
+            edges: list[dict[str, Any]] = []
+            seen_node_ids: set[str] = set()  # O(1) duplicate tracking
 
-            self._walk_program(tree.root_node, source, rel, nodes, edges)
+            self._walk_program(tree.root_node, source, rel, nodes, edges, seen_node_ids)
             return nodes, edges
         except Exception as e:
             print(f"[GlideIt WARNING] Skipping {file_path}: {e}")
@@ -233,40 +244,24 @@ class JSXExtractor(BaseExtractor):
         root: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
     ) -> None:
         for child in root.children:
-            if child.type in ("import_statement", "import_declaration"):
-                self._handle_import(child, source, rel, nodes, edges)
-            elif child.type in (
+            if child.type in (
                 "function_declaration",
                 "function",
                 "lexical_declaration",
                 "variable_declaration",
                 "export_statement",
             ):
-                self._handle_top_level(child, source, rel, nodes, edges)
+                self._handle_top_level(child, source, rel, nodes, edges, seen_node_ids)
             elif child.type == "class_declaration":
-                self._handle_class(child, source, rel, nodes, edges)
+                self._handle_class(child, source, rel, nodes, edges, seen_node_ids)
             elif child.type == "expression_statement":
                 # Arrow function assigned to const at top level is caught via lexical_declaration
                 pass
-
-    # ──────────────────────────────────────────────────────────────
-    # Import handler
-    # ──────────────────────────────────────────────────────────────
-
-    def _handle_import(
-        self,
-        node: "Node",
-        source: bytes,
-        rel: str,
-        nodes: List,
-        edges: List,
-    ) -> None:
-        # We don't create import nodes; just used to resolve component names
-        pass
 
     # ──────────────────────────────────────────────────────────────
     # Top-level declarations
@@ -277,8 +272,9 @@ class JSXExtractor(BaseExtractor):
         node: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
     ) -> None:
         """Handle function declarations, arrow functions, and export statements."""
         # Unwrap export
@@ -290,7 +286,7 @@ class JSXExtractor(BaseExtractor):
                     "variable_declaration",
                     "class_declaration",
                 ):
-                    self._handle_top_level(child, source, rel, nodes, edges)
+                    self._handle_top_level(child, source, rel, nodes, edges, seen_node_ids)
                     return
 
         # Function declaration
@@ -301,7 +297,7 @@ class JSXExtractor(BaseExtractor):
                 if _is_component_name(name):
                     body = node.child_by_field_name("body")
                     params = node.child_by_field_name("parameters")
-                    self._register_component(name, node, params, body, source, rel, nodes, edges)
+                    self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids)
             return
 
         # const Foo = (...) => ...  or  const Foo = function(...) { ... }
@@ -319,7 +315,7 @@ class JSXExtractor(BaseExtractor):
                         params = value_node.child_by_field_name("parameters")
                         body = value_node.child_by_field_name("body")
                         self._register_component(
-                            name, node, params, body, source, rel, nodes, edges
+                            name, node, params, body, source, rel, nodes, edges, seen_node_ids
                         )
 
     # ──────────────────────────────────────────────────────────────
@@ -334,35 +330,42 @@ class JSXExtractor(BaseExtractor):
         body_node: Optional["Node"],
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
     ) -> None:
         line = def_node.start_point[0] + 1
         node_id = self._make_node_id("jsx", rel, name)
 
-        props = _collect_props_from_params(params_node, source) if params_node else []
-        hooks = _collect_hooks(body_node, source) if body_node else []
-        jsx_children = _collect_jsx_children(body_node, source) if body_node else []
-        fetch_calls = _collect_fetch_axios(body_node, source) if body_node else []
+        if node_id not in seen_node_ids:
+            props = _collect_props_from_params(params_node, source) if params_node else []
+            hooks = _collect_hooks(body_node, source) if body_node else []
+            jsx_children = _collect_jsx_children(body_node, source) if body_node else []
+            fetch_calls = _collect_fetch_axios(body_node, source) if body_node else []
 
-        node = self._node(
-            id=node_id,
-            name=name,
-            type="react_component",
-            file=rel,
-            line=line,
-            props=props,
-            hooks=hooks,
-            docstring="No description available.",
-            depth=0,
-        )
-        nodes.append(node)
+            node = self._node(
+                id=node_id,
+                name=name,
+                type="react_component",
+                file=rel,
+                line=line,
+                props=props,
+                hooks=hooks,
+                docstring="No description available.",
+                depth=0,
+            )
+            nodes.append(node)
+            seen_node_ids.add(node_id)
+        else:
+            # Node already exists, still need to collect relationships
+            jsx_children = _collect_jsx_children(body_node, source) if body_node else []
+            fetch_calls = _collect_fetch_axios(body_node, source) if body_node else []
 
         # ── Render relationships ────────────────
         for child_component in jsx_children:
             target_id = self._make_node_id("jsx", rel, child_component)
             # Stub target if not yet defined (may be in another file)
-            if not any(n["id"] == target_id for n in nodes):
+            if target_id not in seen_node_ids:
                 nodes.append(
                     self._node(
                         id=target_id,
@@ -373,6 +376,7 @@ class JSXExtractor(BaseExtractor):
                         depth=1,
                     )
                 )
+                seen_node_ids.add(target_id)
             edge_id = self._make_edge_id(node_id, target_id)
             edges.append(
                 self._edge(
@@ -387,7 +391,7 @@ class JSXExtractor(BaseExtractor):
         for fc in fetch_calls:
             ext_name = f"{fc['name']}:{fc.get('url') or 'dynamic'}"
             ext_id = self._make_node_id("ext", rel, ext_name)
-            if not any(n["id"] == ext_id for n in nodes):
+            if ext_id not in seen_node_ids:
                 nodes.append(
                     self._node(
                         id=ext_id,
@@ -400,6 +404,7 @@ class JSXExtractor(BaseExtractor):
                         depth=2,
                     )
                 )
+                seen_node_ids.add(ext_id)
             edge_id = self._make_edge_id(node_id, ext_id)
             edges.append(
                 self._edge(
@@ -419,8 +424,9 @@ class JSXExtractor(BaseExtractor):
         class_node: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
     ) -> None:
         name_node = class_node.child_by_field_name("name")
         if not name_node:
@@ -433,9 +439,9 @@ class JSXExtractor(BaseExtractor):
         node_id = self._make_node_id("jsx", rel, name)
 
         body = class_node.child_by_field_name("body")
-        jsx_children: List[str] = []
-        lifecycle: List[str] = []
-        fetch_calls: List[Dict] = []
+        jsx_children: list[str] = []
+        lifecycle: list[str] = []
+        fetch_calls: list[dict] = []
 
         if body:
             for method in _find_all(body, "method_definition"):
@@ -450,25 +456,27 @@ class JSXExtractor(BaseExtractor):
                     if mbody:
                         fetch_calls.extend(_collect_fetch_axios(mbody, source))
 
-        node = self._node(
-            id=node_id,
-            name=name,
-            type="react_component",
-            file=rel,
-            line=line,
-            hooks=lifecycle,
-            docstring="No description available.",
-            depth=0,
-        )
-        node["lifecycle_methods"] = lifecycle
-        nodes.append(node)
+        if node_id not in seen_node_ids:
+            node = self._node(
+                id=node_id,
+                name=name,
+                type="react_component",
+                file=rel,
+                line=line,
+                hooks=lifecycle,
+                docstring="No description available.",
+                depth=0,
+            )
+            node["lifecycle_methods"] = lifecycle
+            nodes.append(node)
+            seen_node_ids.add(node_id)
 
         # Render relationships
         for child_name in set(jsx_children):
             if child_name == name:
                 continue
             target_id = self._make_node_id("jsx", rel, child_name)
-            if not any(n["id"] == target_id for n in nodes):
+            if target_id not in seen_node_ids:
                 nodes.append(
                     self._node(
                         id=target_id,
@@ -479,6 +487,7 @@ class JSXExtractor(BaseExtractor):
                         depth=1,
                     )
                 )
+                seen_node_ids.add(target_id)
             edge_id = self._make_edge_id(node_id, target_id)
             edges.append(
                 self._edge(

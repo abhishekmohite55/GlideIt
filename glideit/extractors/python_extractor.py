@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
 from glideit.extractors.base import BaseExtractor
 
@@ -38,11 +38,7 @@ def _text(node: "Node", source: bytes) -> str:
     return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
-def _child_by_field(node: "Node", field: str) -> Optional["Node"]:
-    return node.child_by_field_name(field)
-
-
-def _children_by_type(node: "Node", *types: str) -> List["Node"]:
+def _children_by_type(node: "Node", *types: str) -> list["Node"]:
     return [c for c in node.children if c.type in types]
 
 
@@ -64,14 +60,14 @@ def _extract_docstring(body_node: "Node", source: bytes) -> Optional[str]:
                     raw = _text(inner, source).strip()
                     # Strip triple or single quotes
                     for q in ('"""', "'''", '"', "'"):
-                        if raw.startswith(q) and raw.endswith(q) and len(raw) > 2 * len(q):
+                        if raw.startswith(q) and raw.endswith(q) and len(raw) >= 2 * len(q):
                             return raw[len(q) : -len(q)].strip()
                     return raw
         break  # docstring must be first statement
     return None
 
 
-def _extract_params(parameters_node: "Node", source: bytes) -> List[Dict[str, Any]]:
+def _extract_params(parameters_node: "Node", source: bytes) -> list[dict[str, Any]]:
     """Parse a parameters node into list of {name, type_hint, default_value}."""
     params = []
     if parameters_node is None:
@@ -143,7 +139,7 @@ def _extract_return_type(func_node: "Node", source: bytes) -> Optional[str]:
 
 def _is_flask_route_decorator(
     decorator_node: "Node", source: bytes
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     """
     Detect Flask route decorators on app or blueprints (name-agnostic).
     Matches @<any>.route, @<any>.get, @<any>.post, @<any>.put, @<any>.delete, @<any>.patch.
@@ -242,9 +238,9 @@ def _is_flask_route_decorator(
 # ── Call extraction ────────────────────────────────────────────────────────────
 
 
-def _collect_calls(body_node: "Node", source: bytes) -> List[str]:
+def _collect_calls(body_node: "Node", source: bytes) -> list[str]:
     """Recursively collect all function call names within a body node."""
-    calls: List[str] = []
+    calls: list[str] = []
     if body_node is None:
         return calls
 
@@ -264,9 +260,9 @@ def _collect_calls(body_node: "Node", source: bytes) -> List[str]:
 # ── Variable assignment extraction ────────────────────────────────────────────
 
 
-def _collect_assignments(body_node: "Node", source: bytes) -> List[Dict[str, str]]:
+def _collect_assignments(body_node: "Node", source: bytes) -> list[dict[str, str]]:
     """Collect simple variable assignments at the direct function-body scope."""
-    assignments: List[Dict[str, str]] = []
+    assignments: list[dict[str, str]] = []
     if body_node is None:
         return assignments
 
@@ -331,7 +327,7 @@ class PythonExtractor(BaseExtractor):
         self,
         file_path: Path,
         source: bytes,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         if not _TS_AVAILABLE:
             return [], []
 
@@ -342,12 +338,17 @@ class PythonExtractor(BaseExtractor):
                 raise RuntimeError(f"tree-sitter parse error: {exc}") from exc
 
             rel = self._rel(file_path)
-            nodes: List[Dict[str, Any]] = []
-            edges: List[Dict[str, Any]] = []
+            nodes: list[dict[str, Any]] = []
+            edges: list[dict[str, Any]] = []
+            seen_node_ids: set[str] = set()  # O(1) duplicate tracking
 
             # Collect all defined function/class names for distinguishing internal calls
-            defined_names: Set[str] = set()
+            defined_names: set[str] = set()
             self._collect_defined_names(tree.root_node, source, defined_names)
+
+            # Track imports for qualified cross-file call resolution
+            import_map: dict[str, str] = {}  # alias/name -> module path
+            self._collect_imports(tree.root_node, source, import_map)
 
             self._walk_module(
                 tree.root_node,
@@ -357,6 +358,8 @@ class PythonExtractor(BaseExtractor):
                 edges,
                 defined_names,
                 parent_class=None,
+                import_map=import_map,
+                seen_node_ids=seen_node_ids,
             )
 
             return nodes, edges
@@ -368,7 +371,7 @@ class PythonExtractor(BaseExtractor):
     # Internal walkers
     # ──────────────────────────────────────────────────────────────
 
-    def _collect_defined_names(self, root: "Node", source: bytes, names: Set[str]) -> None:
+    def _collect_defined_names(self, root: "Node", source: bytes, names: set[str]) -> None:
         """Pre-scan: collect all function and class names defined in this file."""
         for child in root.children:
             if child.type in ("function_definition", "decorated_definition"):
@@ -400,56 +403,80 @@ class PythonExtractor(BaseExtractor):
                                 if mn:
                                     names.add(_text(mn, source))
 
+    def _collect_imports(self, root: "Node", source: bytes, import_map: dict[str, str]) -> None:
+        """Collect import statements to map names/aliases to their module sources."""
+        for child in root.children:
+            if child.type == "import_statement":
+                # import module [as alias]
+                name_node = child.child_by_field_name("name")
+                if name_node:
+                    module_name = _text(name_node, source)
+                    alias_node = child.child_by_field_name("alias")
+                    if alias_node:
+                        alias_name = _text(alias_node, source)
+                        import_map[alias_name] = module_name
+                    else:
+                        import_map[module_name] = module_name
+            elif child.type == "import_from_statement":
+                # from module import name [as alias], ...
+                module_node = child.child_by_field_name("module_name")
+                if module_node:
+                    module_name = _text(module_node, source)
+                    module_dotted_name = child.child_by_field_name("module_name")
+                    name_nodes = [c for c in _children_by_type(child, "dotted_name") if c != module_dotted_name]
+                    for dn in name_nodes:
+                        first_id = _first_child_by_type(dn, "identifier")
+                        if first_id:
+                            imported_name = _text(first_id, source)
+                            alias_node = dn.children[-1] if len(dn.children) > 1 else None
+                            if alias_node and alias_node.type == "identifier" and _text(alias_node, source) != imported_name:
+                                import_map[_text(alias_node, source)] = f"{module_name}.{imported_name}"
+                            else:
+                                import_map[imported_name] = f"{module_name}.{imported_name}"
+
     def _walk_module(
         self,
         root: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
-        defined_names: Set[str],
+        nodes: list,
+        edges: list,
+        defined_names: set[str],
         parent_class: Optional[str],
+        import_map: Optional[dict[str, str]] = None,
+        seen_node_ids: Optional[set[str]] = None,
     ) -> None:
+        if import_map is None:
+            import_map = {}
+        if seen_node_ids is None:
+            seen_node_ids = set()
         for child in root.children:
-            if child.type == "import_statement":
-                self._handle_import(child, source, rel, nodes, edges)
-            elif child.type == "import_from_statement":
-                self._handle_import_from(child, source, rel, nodes, edges)
-            elif child.type == "function_definition":
-                self._handle_function(child, source, rel, nodes, edges, defined_names, parent_class)
+            if child.type == "function_definition":
+                self._handle_function(child, source, rel, nodes, edges, defined_names, parent_class, import_map=import_map, seen_node_ids=seen_node_ids)
             elif child.type == "decorated_definition":
                 self._handle_decorated(
-                    child, source, rel, nodes, edges, defined_names, parent_class
+                    child, source, rel, nodes, edges, defined_names, parent_class, import_map=import_map, seen_node_ids=seen_node_ids
                 )
             elif child.type == "class_definition":
-                self._handle_class(child, source, rel, nodes, edges, defined_names)
-
-    def _handle_import(
-        self, node: "Node", source: bytes, rel: str, nodes: List, edges: List
-    ) -> None:
-        """import foo, import foo as bar"""
-        for name_node in _children_by_type(node, "dotted_name", "aliased_import"):
-            _text(name_node, source).split(" as ")[0].strip()
-            # We do NOT add import nodes to keep the graph cleaner for now — only record edges
-            # (Future: could add import nodes with type="import")
-
-    def _handle_import_from(
-        self, node: "Node", source: bytes, rel: str, nodes: List, edges: List
-    ) -> None:
-        """from foo import bar, baz"""
-        pass  # Tracked via edges in function extractors when calls are made
+                self._handle_class(child, source, rel, nodes, edges, defined_names, import_map=import_map, seen_node_ids=seen_node_ids)
 
     def _handle_function(
         self,
         func_node: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
-        defined_names: Set[str],
+        nodes: list,
+        edges: list,
+        defined_names: set[str],
         parent_class: Optional[str],
-        decorators: Optional[List["Node"]] = None,
+        decorators: Optional[list["Node"]] = None,
+        import_map: Optional[dict[str, str]] = None,
+        seen_node_ids: Optional[set[str]] = None,
     ) -> None:
+        if import_map is None:
+            import_map = {}
+        if seen_node_ids is None:
+            seen_node_ids = set()
         name_node = func_node.child_by_field_name("name")
         if not name_node:
             return
@@ -480,28 +507,30 @@ class PythonExtractor(BaseExtractor):
         qualified_name = f"{parent_class}.{func_name}" if parent_class else func_name
 
         node_id = self._make_node_id("py", rel, qualified_name)
-        node = self._node(
-            id=node_id,
-            name=func_name,
-            type=node_type,
-            file=rel,
-            line=line,
-            params=params,
-            returns={
-                "type_hint": return_type,
-                "variable_name": None,
-                "description": None,
-            },
-            docstring=docstring or "No description available.",
-            http_method=http_method,
-            route_path=route_path,
-            depth=0 if is_flask_route else 1,
-        )
-        nodes.append(node)
+        if node_id not in seen_node_ids:
+            node = self._node(
+                id=node_id,
+                name=func_name,
+                type=node_type,
+                file=rel,
+                line=line,
+                params=params,
+                returns={
+                    "type_hint": return_type,
+                    "variable_name": None,
+                    "description": None,
+                },
+                docstring=docstring or "No description available.",
+                http_method=http_method,
+                route_path=route_path,
+                depth=0,
+            )
+            nodes.append(node)
+            seen_node_ids.add(node_id)
 
         # ── Calls ───────────────────────────────────
         calls = _collect_calls(body_node, source)
-        seen_calls: Set[str] = set()
+        seen_calls: set[str] = set()
         for called_name in calls:
             if called_name in seen_calls:
                 continue
@@ -519,8 +548,7 @@ class PythonExtractor(BaseExtractor):
             ):
                 # External call
                 ext_id = self._make_node_id("ext", rel, called_name)
-                ext_node_exists = any(n["id"] == ext_id for n in nodes)
-                if not ext_node_exists:
+                if ext_id not in seen_node_ids:
                     nodes.append(
                         self._node(
                             id=ext_id,
@@ -531,11 +559,25 @@ class PythonExtractor(BaseExtractor):
                             depth=2,
                         )
                     )
+                    seen_node_ids.add(ext_id)
                 target_id = ext_id
                 edge_type = "call"
             else:
-                # Internal call — build probable target ID
-                target_id = self._make_node_id("py", rel, called_name)
+                # Internal call — use import map to construct qualified target ID
+                if base_name in import_map:
+                    # This is an imported name, build target ID from the import source
+                    import_source = import_map[base_name]
+                    # Convert module path to file path approximation
+                    target_file = import_source.replace(".", "/")
+                    if "." in called_name:
+                        # called_name is like "module.func" or "alias.func"
+                        func_part = called_name.split(".", 1)[1]
+                        target_id = self._make_node_id("py", target_file, func_part)
+                    else:
+                        target_id = self._make_node_id("py", target_file, base_name)
+                else:
+                    # Local call within same file
+                    target_id = self._make_node_id("py", rel, called_name)
                 edge_type = "call"
 
             edge_id = self._make_edge_id(node_id, target_id)
@@ -553,11 +595,15 @@ class PythonExtractor(BaseExtractor):
         decorated_node: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
-        defined_names: Set[str],
+        nodes: list,
+        edges: list,
+        defined_names: set[str],
         parent_class: Optional[str],
+        import_map: Optional[dict[str, str]] = None,
+        seen_node_ids: Optional[set[str]] = None,
     ) -> None:
+        if seen_node_ids is None:
+            seen_node_ids = set()
         decorators = _children_by_type(decorated_node, "decorator")
         func_node = _first_child_by_type(decorated_node, "function_definition")
         class_node = _first_child_by_type(decorated_node, "class_definition")
@@ -572,19 +618,27 @@ class PythonExtractor(BaseExtractor):
                 defined_names,
                 parent_class,
                 decorators=decorators,
+                import_map=import_map,
+                seen_node_ids=seen_node_ids,
             )
         elif class_node:
-            self._handle_class(class_node, source, rel, nodes, edges, defined_names)
+            self._handle_class(class_node, source, rel, nodes, edges, defined_names, import_map=import_map, seen_node_ids=seen_node_ids)
 
     def _handle_class(
         self,
         class_node: "Node",
         source: bytes,
         rel: str,
-        nodes: List,
-        edges: List,
-        defined_names: Set[str],
+        nodes: list,
+        edges: list,
+        defined_names: set[str],
+        import_map: Optional[dict[str, str]] = None,
+        seen_node_ids: Optional[set[str]] = None,
     ) -> None:
+        if import_map is None:
+            import_map = {}
+        if seen_node_ids is None:
+            seen_node_ids = set()
         name_node = class_node.child_by_field_name("name")
         if not name_node:
             return
@@ -593,27 +647,29 @@ class PythonExtractor(BaseExtractor):
 
         # Parent class
         superclasses_node = class_node.child_by_field_name("superclasses")
-        parent_class_names: List[str] = []
+        parent_class_names: list[str] = []
         if superclasses_node:
             for arg in superclasses_node.children:
                 if arg.type == "identifier":
                     parent_class_names.append(_text(arg, source))
 
         node_id = self._make_node_id("py", rel, class_name)
-        node = self._node(
-            id=node_id,
-            name=class_name,
-            type="python_class",
-            file=rel,
-            line=line,
-            parent_classes=parent_class_names,
-            depth=0,
-        )
-        nodes.append(node)
+        if node_id not in seen_node_ids:
+            node = self._node(
+                id=node_id,
+                name=class_name,
+                type="python_class",
+                file=rel,
+                line=line,
+                parent_classes=parent_class_names,
+                depth=0,
+            )
+            nodes.append(node)
+            seen_node_ids.add(node_id)
 
         # Walk class body for methods
         body_node = class_node.child_by_field_name("body")
         if body_node:
             self._walk_module(
-                body_node, source, rel, nodes, edges, defined_names, parent_class=class_name
+                body_node, source, rel, nodes, edges, defined_names, parent_class=class_name, import_map=import_map, seen_node_ids=seen_node_ids
             )
