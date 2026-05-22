@@ -242,7 +242,7 @@ class GraphAssembler:
         visited: set[str] = set()
         in_stack: set[str] = set()
 
-        for start_node in list(self._nodes.keys()):
+        for start_node in self._nodes:
             if start_node in visited:
                 continue
 
@@ -275,9 +275,7 @@ class GraphAssembler:
                     in_stack.discard(node_id)
                     stack.pop()
 
-    # ──────────────────────────────────────────
     # Helpers
-    # ──────────────────────────────────────────
 
     @staticmethod
     def _normalize(path_str: str) -> str:

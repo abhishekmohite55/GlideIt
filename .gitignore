@@ -43,6 +43,8 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+*.test-results.xml
+test-results.xml
 *.cover
 *.py,cover
 .hypothesis/
@@ -98,6 +100,9 @@ knowledge/
 
 # Ruff cache
 .ruff_cache/
+
+# opencode config (contains env var references)
+opencode.json
 
 # General logs
 *.log

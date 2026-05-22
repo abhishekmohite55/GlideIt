@@ -2,11 +2,16 @@
  * JsxPage — React component nodes on a pannable canvas.
  * Uses the unified GraphCanvasPage component.
  */
+import PropTypes from 'prop-types'
 import React from 'react'
 import GraphCanvasPage from './GraphCanvasPage.jsx'
 
 function minimapNodeColor() {
   return '#AA00FF'
+}
+
+JsxPage.propTypes = {
+  data: PropTypes.object.isRequired,
 }
 
 export default function JsxPage({ data }) {

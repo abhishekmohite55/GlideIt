@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React, { useState } from 'react';
 
 // Node type legend items
@@ -38,6 +39,11 @@ const SHORTCUTS = [
 ];
 
 // Simple SVG lines to show edge styles
+EdgeSample.propTypes = {
+  style: PropTypes.string,
+  color: PropTypes.string,
+}
+
 function EdgeSample({ style, color }) {
   const isDashed = style === 'dashed';
   return (
@@ -54,6 +60,11 @@ function EdgeSample({ style, color }) {
 }
 
 // Small colored box to show node type
+NodeSample.propTypes = {
+  bg: PropTypes.string,
+  border: PropTypes.string,
+}
+
 function NodeSample({ bg, border }) {
   return (
     <div style={{
@@ -68,6 +79,10 @@ function NodeSample({ bg, border }) {
 }
 
 // Keyboard key pill
+Key.propTypes = {
+  label: PropTypes.string,
+}
+
 function Key({ label }) {
   return (
     <span style={{
@@ -83,6 +98,11 @@ function Key({ label }) {
       {label}
     </span>
   );
+}
+
+LegendPanel.propTypes = {
+  isOpen: PropTypes.bool,
+  onClose: PropTypes.func,
 }
 
 export function LegendPanel({ isOpen, onClose }) {
@@ -212,7 +232,7 @@ export function LegendPanel({ isOpen, onClose }) {
                 <span style={{ color: '#888', fontSize: '11px' }}>{sc.action}</span>
                 <div style={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
                   {sc.keys.map((k, i) => (
-                    <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <span key={k} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                       {i > 0 && <span style={{ color: '#444', fontSize: '9px' }}>+</span>}
                       <Key label={k} />
                     </span>

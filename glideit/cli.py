@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 
 MAX_PORT_ATTEMPTS = 100
 
-# ──────────────────────────────────────────────
 # Colour helpers (no deps)
-# ──────────────────────────────────────────────
 
 
 def _cyan(s: str) -> str:
@@ -187,12 +185,12 @@ def start_server(directory: Path, port: int = 8000) -> int:
         logger.error(_red("Could not find a free port to bind the server."))
         return 1
 
-    print(_green(f"  Starting local server at http://localhost:{actual_port}"))
+    print(_green(f"  Starting local server at http://localhost:{actual_port}"))  # NOSONAR
     print(_cyan("  Press Ctrl+C to stop the server."))
 
     def open_browser():
         time.sleep(0.5)
-        webbrowser.open(f"http://localhost:{actual_port}")
+        webbrowser.open(f"http://localhost:{actual_port}")  # NOSONAR
 
     Thread(target=open_browser, daemon=True).start()
 

@@ -4,6 +4,7 @@
  * Each card shows HTTP method badge, route path, handler name.
  * Expanding shows the call chain detected from the graph.
  */
+import PropTypes from 'prop-types'
 import { useMemo, useState } from 'react'
 
 const METHOD_COLORS = {
@@ -12,6 +13,10 @@ const METHOD_COLORS = {
   PUT:    { bg: 'rgba(255,140,0,0.15)', border: '#FF8C00', text: '#FF8C00' },
   DELETE: { bg: 'rgba(255,51,51,0.15)', border: '#FF3333', text: '#FF3333' },
   PATCH:  { bg: 'rgba(170,0,255,0.15)', border: '#AA00FF', text: '#AA00FF' },
+}
+
+HttpBadge.propTypes = {
+  method: PropTypes.string,
 }
 
 function HttpBadge({ method }) {
@@ -25,6 +30,12 @@ function HttpBadge({ method }) {
       {m}
     </span>
   )
+}
+
+RouteCard.propTypes = {
+  route: PropTypes.object,
+  allNodes: PropTypes.array,
+  allEdges: PropTypes.array,
 }
 
 function RouteCard({ route, allNodes, allEdges }) {
@@ -45,7 +56,7 @@ function RouteCard({ route, allNodes, allEdges }) {
   return (
     <div
       className={`api-card ${expanded ? 'api-card--expanded' : ''}`}
-      id={`api-route-${route.id.replace(/[^a-zA-Z0-9]/g, '-')}`}
+      id={`api-route-${route.id.replaceAll(/[^a-zA-Z0-9]/g, '-')}`}
     >
       {/* Card header */}
       <button
@@ -75,8 +86,8 @@ function RouteCard({ route, allNodes, allEdges }) {
             <div className="api-detail-row">
               <span className="api-detail-label">Parameters</span>
               <div>
-                {route.params.map((p, i) => (
-                  <div key={i} className="api-detail-param">
+                {route.params.map(p => (
+                  <div key={p.name} className="api-detail-param">
                     <code>{p.name}</code>
                     {p.type_hint && <span className="param-type">: {p.type_hint}</span>}
                   </div>
@@ -171,4 +182,11 @@ export default function ApiPage({ data }) {
       ))}
     </div>
   )
+}
+
+ApiPage.propTypes = {
+  data: PropTypes.shape({
+    nodes: PropTypes.array,
+    edges: PropTypes.array,
+  }).isRequired,
 }

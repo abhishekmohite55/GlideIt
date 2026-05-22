@@ -424,7 +424,7 @@ body {
 .node-badge--flask_route     { background: rgba(0,200,83,0.12);   color: var(--color-flask-route); }
 .node-badge--react_component { background: rgba(170,0,255,0.12);  color: var(--color-react-comp); }
 .node-badge--external_call   { background: rgba(85,85,85,0.2);    color: var(--color-external); }
-.node-badge--python_class    { background: rgba(255,140,0,0.12);  color: #FF8C00; }
+.node-badge--python_class    { background: rgba(255,140,0,0.12);  color: #FFB347; }
 
 /* HTTP method badges */
 .http-method-group {

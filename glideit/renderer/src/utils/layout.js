@@ -23,7 +23,7 @@ export function toFlowNodes(graphNodes, selectedId = null, clusterColorMap = {},
     mainNodeId = nodeByName.get('main').id
   } else {
     // Check for ID ending with ':main'
-    for (const [id, node] of nodeById) {
+    for (const id of nodeById.keys()) {
       if (id.endsWith(':main')) {
         mainNodeId = id
         break
@@ -57,7 +57,7 @@ export function toFlowEdges(graphEdges, clusterColorMap = {}) {
   
   return graphEdges.map(e => {
     // We sort the keys so A->B and B->A share the same routing offset lane
-    const pairKey = [e.source, e.target].sort().join('|');
+    const pairKey = [e.source, e.target].sort((a, b) => a < b ? -1 : a > b ? 1 : 0).join('|');
     if (!edgeCounts[pairKey]) edgeCounts[pairKey] = 0;
     
     // Assign lane offset
@@ -102,16 +102,16 @@ export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap
   }
 
   const styledNodes = nodes.map(n => {
-    let opacity = 1.0;
+    let opacity = 1;
     if (highlightedPathIds) {
       if (highlightedPathIds.has(n.id)) {
-        opacity = 1.0;
+        opacity = 1;
       } else {
         opacity = 0.2;
       }
     } else if (selectedId) {
       if (n.id === selectedId || directChildrenIds.has(n.id)) {
-        opacity = 1.0;
+        opacity = 1;
       } else {
         opacity = 0.35;
       }
@@ -125,66 +125,39 @@ export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap
       },
       style: {
         ...n.style,
-        opacity: opacity,
+        opacity,
         transition: 'opacity 0.3s ease, transform 0.3s ease',
       }
     };
   });
 
   const styledEdges = edges.map(e => {
-    let style = { ...e.style };
+    const clusterColor = clusterColorMap[e.source] ?? '#3A3A3A';
+    let style = { ...e.style, stroke: clusterColor };
     let animated = e.animated;
     let markerEnd = { ...e.markerEnd };
-
-    const clusterColor = clusterColorMap[e.source] ?? '#3A3A3A';
 
     if (highlightedPathIds && highlightedEdgeKeys) {
       const isPathEdge = highlightedEdgeKeys.has(`${e.source}->${e.target}`);
       if (isPathEdge) {
-        style = {
-          ...style,
-          stroke: clusterColor,
-          strokeWidth: 2.5,
-          opacity: 1.0,
-        };
+        style = { ...style, stroke: clusterColor, strokeWidth: 2.5, opacity: 1 };
         animated = true;
-        markerEnd = {
-          ...markerEnd,
-          color: clusterColor,
-        };
+        markerEnd = { ...markerEnd, color: clusterColor };
       } else {
-        style = {
-          ...style,
-          opacity: 0.05,
-        };
+        style = { ...style, opacity: 0.05 };
         animated = false;
       }
     } else if (selectedId) {
       if (e.source === selectedId) {
-        style = {
-          ...style,
-          stroke: clusterColor,
-          strokeWidth: 2.5,
-          opacity: 1.0,
-        };
+        style = { ...style, stroke: clusterColor, strokeWidth: 2.5, opacity: 1 };
         animated = true;
-        markerEnd = {
-          ...markerEnd,
-          color: clusterColor,
-        };
+        markerEnd = { ...markerEnd, color: clusterColor };
       } else {
-        style = {
-          ...style,
-          opacity: 0.1,
-        };
+        style = { ...style, opacity: 0.1 };
         animated = false;
       }
     } else {
-      style = {
-        ...style,
-        stroke: clusterColor,
-        opacity: 0.65,
-      };
+      style = { ...style, opacity: 0.65 };
     }
 
     return {

@@ -103,30 +103,26 @@ export function useKeyBindings({
     // Arrow keys: scroll canvas (prevent default page scroll)
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dy: -SCROLL_AMOUNT } }));
-      return;
+      globalThis.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dy: -SCROLL_AMOUNT } }));
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dy: SCROLL_AMOUNT } }));
-      return;
+      globalThis.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dy: SCROLL_AMOUNT } }));
     }
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dx: -SCROLL_AMOUNT } }));
-      return;
+      globalThis.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dx: -SCROLL_AMOUNT } }));
     }
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      window.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dx: SCROLL_AMOUNT } }));
-      return;
+      globalThis.dispatchEvent(new CustomEvent('glideit-scroll', { detail: { dx: SCROLL_AMOUNT } }));
     }
 
   }, [zoomIn, zoomOut, onFitView, onSelectAll, onDeselectAll, onExpandSelected,
       onToggleMinimap, onToggleLegend, onToggleLayout, onResetLayout, onJumpToEntries]);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    globalThis.addEventListener('keydown', handleKeyDown);
+    return () => globalThis.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 }

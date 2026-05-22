@@ -12,8 +12,8 @@ export default function App() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (window.__GLIDEIT_DATA__) {
-      setGraphData(window.__GLIDEIT_DATA__)
+    if (globalThis.__GLIDEIT_DATA__) {
+      setGraphData(globalThis.__GLIDEIT_DATA__)
       setLoading(false)
       return
     }

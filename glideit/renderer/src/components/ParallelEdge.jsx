@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { BaseEdge, getBezierPath } from '@xyflow/react';
 
@@ -21,7 +22,7 @@ export default function ParallelEdge({
   // Calculate vector from source to target
   const dx = targetX - sourceX;
   const dy = targetY - sourceY;
-  const length = Math.sqrt(dx * dx + dy * dy);
+  const length = Math.hypot(dx, dy);
   
   // Normal vector (perpendicular)
   let nx = 0;
@@ -57,4 +58,18 @@ export default function ParallelEdge({
       markerEnd={markerEnd}
     />
   );
+}
+
+ParallelEdge.propTypes = {
+  sourceX: PropTypes.number,
+  sourceY: PropTypes.number,
+  targetX: PropTypes.number,
+  targetY: PropTypes.number,
+  sourcePosition: PropTypes.string,
+  targetPosition: PropTypes.string,
+  style: PropTypes.object,
+  markerEnd: PropTypes.object,
+  data: PropTypes.shape({
+    offset: PropTypes.number,
+  }),
 }

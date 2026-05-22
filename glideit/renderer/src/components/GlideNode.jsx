@@ -3,6 +3,7 @@
  * Renders a node card for python_function, flask_route,
  * react_component, external_call, and python_class types.
  */
+import PropTypes from 'prop-types'
 import React, { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 
@@ -32,6 +33,10 @@ const NODE_STYLES = {
 
 function NodeBadge({ type }) {
   return <span className={`node-badge node-badge--${type}`}>{TYPE_LABELS[type] || type}</span>
+}
+
+NodeBadge.propTypes = {
+  type: PropTypes.string.isRequired,
 }
 
 function HttpMethodBadge({ method }) {
@@ -72,7 +77,7 @@ export default function GlideNode({ data }) {
     isMainNode,
   } = data
 
-  const expanded = data.expanded !== undefined ? data.expanded : localExpanded
+  const expanded = data.expanded ?? localExpanded
 
   const setExpanded = (val) => {
     if (data.onToggleExpanded) {
@@ -100,15 +105,18 @@ export default function GlideNode({ data }) {
   const isEntryPoint = depth === 0
   const clusterColor = data.clusterColor ?? null
 
+  let outlineVal = 'none'
+  if (isMainNode) {
+    outlineVal = '2px solid #FFD700'
+  } else if (isEntryPoint && clusterColor) {
+    outlineVal = `2px solid ${clusterColor}`
+  }
+
   const cardStyle = {
     background: typeStyle.background,
     borderColor: typeStyle.borderColor,
     borderLeftColor: typeStyle.borderColor,
-    outline: isMainNode
-      ? '2px solid #FFD700'
-      : isEntryPoint && clusterColor
-        ? `2px solid ${clusterColor}`
-        : 'none',
+    outline: outlineVal,
     outlineOffset: '3px',
     borderRadius: '8px',
     boxShadow: isMainNode
@@ -199,8 +207,8 @@ export default function GlideNode({ data }) {
           {params.length > 0 && (
             <div className="node-detail-section">
               <span className="node-detail-label">Parameters</span>
-              {params.map((p, i) => (
-                <div key={i} className="node-detail-row">
+              {params.map(p => (
+                <div key={p.name} className="node-detail-row">
                   <code className="param-name">{p.name}</code>
                   {p.type_hint && <span className="param-type">: {p.type_hint}</span>}
                   {p.default_value && <span className="param-default"> = {p.default_value}</span>}
@@ -225,7 +233,7 @@ export default function GlideNode({ data }) {
             <div className="node-detail-section">
               <span className="node-detail-label">Hooks</span>
               <div className="node-detail-row hooks-list">
-                {hooks.map((h, i) => <code key={i} className="hook-tag">{h}</code>)}
+                {hooks.map(h => <code key={h} className="hook-tag">{h}</code>)}
               </div>
             </div>
           )}
@@ -234,8 +242,8 @@ export default function GlideNode({ data }) {
           {props.length > 0 && (
             <div className="node-detail-section">
               <span className="node-detail-label">Props</span>
-              {props.map((p, i) => (
-                <div key={i} className="node-detail-row">
+              {props.map(p => (
+                <div key={p.name} className="node-detail-row">
                   <code className="param-name">{p.name}</code>
                   {p.type_hint && <span className="param-type">: {p.type_hint}</span>}
                 </div>
@@ -256,4 +264,31 @@ export default function GlideNode({ data }) {
       <Handle type="source" position={Position.Bottom} className="node-handle" />
     </div>
   )
+}
+
+HttpMethodBadge.propTypes = {
+  method: PropTypes.string,
+}
+
+GlideNode.propTypes = {
+  data: PropTypes.shape({
+    name: PropTypes.string,
+    type: PropTypes.string,
+    file: PropTypes.string,
+    line: PropTypes.number,
+    params: PropTypes.array,
+    returns: PropTypes.object,
+    docstring: PropTypes.string,
+    http_method: PropTypes.string,
+    route_path: PropTypes.string,
+    hooks: PropTypes.array,
+    props: PropTypes.array,
+    depth: PropTypes.number,
+    selected: PropTypes.bool,
+    isMainNode: PropTypes.bool,
+    expanded: PropTypes.bool,
+    onToggleExpanded: PropTypes.func,
+    id: PropTypes.string,
+    clusterColor: PropTypes.string,
+  }).isRequired,
 }

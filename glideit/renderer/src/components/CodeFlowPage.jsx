@@ -2,6 +2,7 @@
  * CodeFlowPage — all Python function nodes on a pannable/zoomable canvas.
  * Uses the unified GraphCanvasPage component.
  */
+import PropTypes from 'prop-types'
 import React from 'react'
 import GraphCanvasPage from './GraphCanvasPage.jsx'
 
@@ -20,6 +21,10 @@ function minimapNodeColor(node) {
     case 'external_call': return '#555555'
     default: return '#3A3A3A'
   }
+}
+
+CodeFlowPage.propTypes = {
+  data: PropTypes.object.isRequired,
 }
 
 export default function CodeFlowPage({ data }) {

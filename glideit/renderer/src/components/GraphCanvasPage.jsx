@@ -2,6 +2,7 @@
  * GraphCanvasPage — unified canvas component for both Python and React component graphs.
  * Accepts props to customize node filtering, focal zoom behavior, and legend descriptions.
  */
+import PropTypes from 'prop-types'
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import {
   ReactFlow,
@@ -191,7 +192,7 @@ function GraphCanvasContent({
     setNodes(nds => nds.map(n => ({
       ...n,
       selected: true,
-      style: { ...n.style, opacity: 1.0 }
+      style: { ...n.style, opacity: 1 }
     })))
   }, [setNodes])
 
@@ -250,8 +251,8 @@ function GraphCanvasContent({
       const vp = getViewport()
       setViewport({ x: vp.x - dx, y: vp.y - dy }, { duration: 100 })
     }
-    window.addEventListener('glideit-scroll', handleScroll)
-    return () => window.removeEventListener('glideit-scroll', handleScroll)
+    globalThis.addEventListener('glideit-scroll', handleScroll)
+    return () => globalThis.removeEventListener('glideit-scroll', handleScroll)
   }, [setViewport, getViewport])
 
   const hasFocalZoomed = useRef(false)
@@ -490,6 +491,16 @@ function GraphCanvasContent({
       />
     </div>
   )
+}
+
+GraphCanvasContent.propTypes = {
+  data: PropTypes.object.isRequired,
+  nodeTypeFilter: PropTypes.oneOfType([PropTypes.instanceOf(Set), PropTypes.func]),
+  edgeTypeFilter: PropTypes.func,
+  emptyStateTitle: PropTypes.string.isRequired,
+  emptyStateMessage: PropTypes.string.isRequired,
+  minimapNodeColor: PropTypes.func,
+  focalZoomStrategy: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
 }
 
 export default function GraphCanvasPage(props) {

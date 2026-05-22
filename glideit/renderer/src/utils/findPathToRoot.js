@@ -40,7 +40,7 @@ export function findPathToRoot(nodeId, allNodes, allEdges) {
     // If we reached an entry point (depth 0) or a node with no parents, stop
     if (!currentNode || currentNode.depth === 0 || !reverseAdj[current] || reverseAdj[current].length === 0) {
       // Return path from root to hovered node (reverse so entry point is first)
-      return path.reverse().map(id => nodeById[id]).filter(Boolean);
+      return path.toReversed().map(id => nodeById[id]).filter(Boolean);
     }
 
     const parents = reverseAdj[current] || [];

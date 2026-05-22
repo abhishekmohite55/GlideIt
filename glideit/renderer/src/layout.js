@@ -68,7 +68,7 @@ export function getElkLayout(nodes, edges, direction = 'DOWN') {
 
       worker.postMessage({ graph: elkGraph });
     });
-  } catch (_) {
+  } catch {
     return fallbackLayout(elkGraph, nodes, edges);
   }
 }

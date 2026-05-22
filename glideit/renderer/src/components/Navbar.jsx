@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import React from 'react'
 
 const PAGES = [
@@ -40,9 +41,9 @@ export default function Navbar({ activePage, onNavigate }) {
       </div>
 
       {/* Navigation items */}
-      <ul className="navbar-nav" role="list">
+      <ul className="navbar-nav">
         {PAGES.map(page => (
-          <li key={page.id} role="listitem">
+          <li key={page.id}>
             <button
               id={`nav-${page.id}`}
               className={`navbar-nav-item ${activePage === page.id ? 'active' : ''}`}
@@ -70,4 +71,9 @@ export default function Navbar({ activePage, onNavigate }) {
       </a>
     </nav>
   )
+}
+
+Navbar.propTypes = {
+  activePage: PropTypes.string.isRequired,
+  onNavigate: PropTypes.func.isRequired,
 }

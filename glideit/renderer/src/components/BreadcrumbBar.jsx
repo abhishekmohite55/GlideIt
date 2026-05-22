@@ -3,8 +3,15 @@
  * Displays the call chain path at the top of the canvas.
  * path is an array of node objects ordered from entry point to hovered node.
  */
+import PropTypes from 'prop-types'
+
 export function BreadcrumbBar({ path, onNodeClick }) {
   if (!path || path.length === 0) return null;
+
+BreadcrumbBar.propTypes = {
+  path: PropTypes.array,
+  onNodeClick: PropTypes.func,
+}
 
   // Color by node type — matches the node border colors from design doc
   const typeColor = {
@@ -50,6 +57,9 @@ export function BreadcrumbBar({ path, onNodeClick }) {
             {/* Node name with type color */}
             <span
               onClick={() => onNodeClick?.(node.id)}
+              onKeyDown={e => e.key === 'Enter' && onNodeClick?.(node.id)}
+              role="button"
+              tabIndex={0}
               style={{
                 fontSize: '12px',
                 color: isLast ? '#F0F0F0' : color,   // hovered node is white, ancestors are colored

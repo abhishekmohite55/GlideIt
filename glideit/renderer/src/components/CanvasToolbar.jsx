@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import React from 'react'
 
 export function CanvasToolbar({
@@ -68,4 +69,11 @@ export function CanvasToolbar({
       </div>
     </div>
   );
+}
+
+CanvasToolbar.propTypes = {
+  layoutDirection: PropTypes.string.isRequired,
+  onLayoutToggle: PropTypes.func.isRequired,
+  nodeCount: PropTypes.number.isRequired,
+  edgeCount: PropTypes.number.isRequired,
 }
