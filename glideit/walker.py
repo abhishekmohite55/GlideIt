@@ -7,6 +7,7 @@ and returns separate lists of Python and JSX/JS/TSX files.
 
 from __future__ import annotations
 
+import fnmatch
 import sys
 from pathlib import Path
 
@@ -117,6 +118,12 @@ class Walker:
                     ".pytest_cache",
                 ):
                     return True
+            # Check glob patterns from built-in ignores (e.g. *.pyc, *.pyo)
+            rel_str = rel.as_posix()
+            for pattern in _BUILTIN_IGNORES:
+                if "*" in pattern:
+                    if fnmatch.fnmatch(rel_str, pattern) or fnmatch.fnmatch(rel_str, pattern.rstrip("/")):
+                        return True
             return False
 
         rel = path.relative_to(self.root).as_posix()

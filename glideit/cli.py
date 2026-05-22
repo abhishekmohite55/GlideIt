@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from glideit import __version__
 
@@ -67,7 +68,6 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     print(_bold(_cyan("GlideIt") + " — scanning project..."))
 
-    # ── Walk the directory ────────────────────
     walker = Walker(repo_root, exclude_patterns=args.exclude)
     py_files, jsx_files = walker.collect()
 
@@ -78,40 +78,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(_yellow("[notice] No parseable files found after filtering."))
         return 1
 
-    # ── Extract nodes/edges ───────────────────
     assembler = GraphAssembler(repo_root)
     py_extractor = PythonExtractor(repo_root)
     jsx_extractor = JSXExtractor(repo_root)
 
-    def _process_python_file(fp: Path) -> None:
-        source = fp.read_bytes()
-        nodes, edges = py_extractor.extract(fp, source)
-        assembler.add(nodes, edges)
-
-    def _process_jsx_file(fp: Path) -> None:
-        source = fp.read_bytes()
-        nodes, edges = jsx_extractor.extract(fp, source)
-        assembler.add(nodes, edges)
-
-    # Python
-    print(f"  {_bold('Processing')} Python files...")
-    for i, fp in enumerate(py_files, 1):
-        try:
-            _process_python_file(fp)
-            if i % 10 == 0 or i == len(py_files):
-                print(f"    Progress: {i}/{len(py_files)} files processed")
-        except (SyntaxError, ValueError, OSError) as exc:
-            print(_yellow(f"  [warn] Skipping {fp.relative_to(repo_root)}: {exc}"))
-
-    # JSX / JS / TSX
-    print(f"  {_bold('Processing')} JSX/JS/TSX files...")
-    for i, fp in enumerate(jsx_files, 1):
-        try:
-            _process_jsx_file(fp)
-            if i % 10 == 0 or i == len(jsx_files):
-                print(f"    Progress: {i}/{len(jsx_files)} files processed")
-        except (SyntaxError, ValueError, OSError) as exc:
-            print(_yellow(f"  [warn] Skipping {fp.relative_to(repo_root)}: {exc}"))
+    _process_extracted_files(py_files, py_extractor, assembler, repo_root, "Python")
+    _process_extracted_files(jsx_files, jsx_extractor, assembler, repo_root, "JSX/JS/TSX")
 
     print(f"  {_bold('Total files parsed')}: {len(py_files) + len(jsx_files)}")
 
@@ -148,6 +120,26 @@ def cmd_run(args: argparse.Namespace) -> int:
         return start_server(output_dir)
 
     return 0
+
+
+def _process_extracted_files(
+    files: list[Path],
+    extractor: Any,
+    assembler: Any,
+    repo_root: Path,
+    label: str,
+) -> None:
+    """Process a collection of files through an extractor and collect into assembler."""
+    print(f"  {_bold('Processing')} {label} files...")
+    for i, fp in enumerate(files, 1):
+        try:
+            source = fp.read_bytes()
+            nodes, edges = extractor.extract(fp, source)
+            assembler.add(nodes, edges)
+            if i % 10 == 0 or i == len(files):
+                print(f"    Progress: {i}/{len(files)} files processed")
+        except (SyntaxError, ValueError, OSError) as exc:
+            print(_yellow(f"  [warn] Skipping {fp.relative_to(repo_root)}: {exc}"))
 
 
 # ──────────────────────────────────────────────

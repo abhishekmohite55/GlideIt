@@ -146,6 +146,22 @@ def _collect_jsx_children(body_node: "Node", source: bytes) -> list[str]:
     return used
 
 
+def _extract_url_and_method(
+    call: "Node", source: bytes, func_name: str, is_fetch: bool, is_axios: bool
+) -> tuple[Optional[str], str]:
+    """Extract URL and HTTP method from a fetch/axios call expression."""
+    args_node: Optional["Node"] = call.child_by_field_name("arguments")
+    url: Optional[str] = None
+    method = "GET"
+    if args_node:
+        str_args = _find_all(args_node, "string")
+        if str_args:
+            url = _text(str_args[0], source).strip("\"'`").strip()
+        if is_axios and "." in func_name:
+            method = func_name.split(".")[-1].upper()
+    return url, method
+
+
 def _collect_fetch_axios(body_node: "Node", source: bytes) -> list[dict[str, Any]]:
     """Collect fetch() and axios calls within a function body."""
     external_calls: list[dict[str, Any]] = []
@@ -158,22 +174,22 @@ def _collect_fetch_axios(body_node: "Node", source: bytes) -> list[dict[str, Any
         is_axios = func_name.startswith("axios")
         if not (is_fetch or is_axios):
             continue
-
-        # Try to extract URL from first argument
-        args_node = call.child_by_field_name("arguments")
-        url: Optional[str] = None
-        method = "GET"  # default
-        if args_node:
-            str_args = _find_all(args_node, "string")
-            if str_args:
-                url = _text(str_args[0], source).strip("\"'`").strip()
-            # axios.post / axios.get / etc.
-            if is_axios and "." in func_name:
-                method = func_name.split(".")[-1].upper()
-
+        url, method = _extract_url_and_method(call, source, func_name, is_fetch, is_axios)
         external_calls.append({"name": func_name, "url": url, "method": method})
-
     return external_calls
+
+
+def _extract_props_from_object_pattern(pattern_node: "Node", source: bytes) -> list[dict[str, Any]]:
+    """Extract prop names from a destructured object pattern."""
+    props: list[dict[str, Any]] = []
+    for child in pattern_node.children:
+        if child.type == "shorthand_property_identifier_pattern":
+            props.append({"name": _text(child, source), "type_hint": None})
+        elif child.type == "pair_pattern":
+            key = child.child_by_field_name("key")
+            if key:
+                props.append({"name": _text(key, source), "type_hint": None})
+    return props
 
 
 def _collect_props_from_params(params_node: "Node", source: bytes) -> list[dict[str, Any]]:
@@ -184,14 +200,7 @@ def _collect_props_from_params(params_node: "Node", source: bytes) -> list[dict[
 
     for child in params_node.children:
         if child.type == "object_pattern":
-            # Destructured props: ({ name, age })
-            for prop_child in child.children:
-                if prop_child.type == "shorthand_property_identifier_pattern":
-                    props.append({"name": _text(prop_child, source), "type_hint": None})
-                elif prop_child.type == "pair_pattern":
-                    key = prop_child.child_by_field_name("key")
-                    if key:
-                        props.append({"name": _text(key, source), "type_hint": None})
+            props.extend(_extract_props_from_object_pattern(child, source))
         elif child.type == "identifier":
             name = _text(child, source)
             if name not in ("props",):
@@ -277,46 +286,75 @@ class JSXExtractor(BaseExtractor):
         seen_node_ids: set[str],
     ) -> None:
         """Handle function declarations, arrow functions, and export statements."""
-        # Unwrap export
         if node.type == "export_statement":
-            for child in node.children:
-                if child.type in (
-                    "function_declaration",
-                    "lexical_declaration",
-                    "variable_declaration",
-                    "class_declaration",
-                ):
-                    self._handle_top_level(child, source, rel, nodes, edges, seen_node_ids)
-                    return
-
-        # Function declaration
-        if node.type == "function_declaration":
-            name_node = node.child_by_field_name("name")
-            if name_node:
-                name = _text(name_node, source)
-                if _is_component_name(name):
-                    body = node.child_by_field_name("body")
-                    params = node.child_by_field_name("parameters")
-                    self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids)
+            self._handle_export(node, source, rel, nodes, edges, seen_node_ids)
             return
-
-        # const Foo = (...) => ...  or  const Foo = function(...) { ... }
+        if node.type == "function_declaration":
+            self._handle_function_decl(node, source, rel, nodes, edges, seen_node_ids)
+            return
         if node.type in ("lexical_declaration", "variable_declaration"):
-            for decl in _children_by_type(node, "variable_declarator"):
-                name_node = decl.child_by_field_name("name")
-                value_node = decl.child_by_field_name("value")
-                if name_node and value_node:
-                    name = _text(name_node, source)
-                    if _is_component_name(name) and value_node.type in (
-                        "arrow_function",
-                        "function",
-                        "function_expression",
-                    ):
-                        params = value_node.child_by_field_name("parameters")
-                        body = value_node.child_by_field_name("body")
-                        self._register_component(
-                            name, node, params, body, source, rel, nodes, edges, seen_node_ids
-                        )
+            self._handle_variable_decl(node, source, rel, nodes, edges, seen_node_ids)
+
+    def _handle_export(
+        self,
+        node: "Node",
+        source: bytes,
+        rel: str,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
+    ) -> None:
+        for child in node.children:
+            if child.type in (
+                "function_declaration",
+                "lexical_declaration",
+                "variable_declaration",
+                "class_declaration",
+            ):
+                self._handle_top_level(child, source, rel, nodes, edges, seen_node_ids)
+                return
+
+    def _handle_function_decl(
+        self,
+        node: "Node",
+        source: bytes,
+        rel: str,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
+    ) -> None:
+        name_node = node.child_by_field_name("name")
+        if not name_node:
+            return
+        name = _text(name_node, source)
+        if not _is_component_name(name):
+            return
+        body = node.child_by_field_name("body")
+        params = node.child_by_field_name("parameters")
+        self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids)
+
+    def _handle_variable_decl(
+        self,
+        node: "Node",
+        source: bytes,
+        rel: str,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
+    ) -> None:
+        for decl in _children_by_type(node, "variable_declarator"):
+            name_node = decl.child_by_field_name("name")
+            value_node = decl.child_by_field_name("value")
+            if not name_node or not value_node:
+                continue
+            name = _text(name_node, source)
+            if not _is_component_name(name):
+                continue
+            if value_node.type not in ("arrow_function", "function", "function_expression"):
+                continue
+            params = value_node.child_by_field_name("parameters")
+            body = value_node.child_by_field_name("body")
+            self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids)
 
     # ──────────────────────────────────────────────────────────────
     # Component registration
@@ -357,14 +395,27 @@ class JSXExtractor(BaseExtractor):
             nodes.append(node)
             seen_node_ids.add(node_id)
         else:
-            # Node already exists, still need to collect relationships
             jsx_children = _collect_jsx_children(body_node, source) if body_node else []
             fetch_calls = _collect_fetch_axios(body_node, source) if body_node else []
 
-        # ── Render relationships ────────────────
+        self._create_render_edges(node_id, rel, jsx_children, nodes, edges, seen_node_ids)
+        self._create_fetch_edges(node_id, rel, fetch_calls, line, nodes, edges, seen_node_ids)
+
+    def _create_render_edges(
+        self,
+        node_id: str,
+        rel: str,
+        jsx_children: list[str],
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
+    ) -> None:
+        seen_children: set[str] = set()
         for child_component in jsx_children:
+            if child_component in seen_children:
+                continue
+            seen_children.add(child_component)
             target_id = self._make_node_id("jsx", rel, child_component)
-            # Stub target if not yet defined (may be in another file)
             if target_id not in seen_node_ids:
                 nodes.append(
                     self._node(
@@ -387,7 +438,16 @@ class JSXExtractor(BaseExtractor):
                 )
             )
 
-        # ── External fetch/axios calls ──────────
+    def _create_fetch_edges(
+        self,
+        node_id: str,
+        rel: str,
+        fetch_calls: list[dict],
+        line: int,
+        nodes: list,
+        edges: list,
+        seen_node_ids: set[str],
+    ) -> None:
         for fc in fetch_calls:
             ext_name = f"{fc['name']}:{fc.get('url') or 'dynamic'}"
             ext_id = self._make_node_id("ext", rel, ext_name)
@@ -437,24 +497,7 @@ class JSXExtractor(BaseExtractor):
 
         line = class_node.start_point[0] + 1
         node_id = self._make_node_id("jsx", rel, name)
-
-        body = class_node.child_by_field_name("body")
-        jsx_children: list[str] = []
-        lifecycle: list[str] = []
-        fetch_calls: list[dict] = []
-
-        if body:
-            for method in _find_all(body, "method_definition"):
-                mname_node = method.child_by_field_name("name")
-                if mname_node:
-                    mname = _text(mname_node, source)
-                    if mname in _LIFECYCLE_METHODS:
-                        lifecycle.append(mname)
-                    mbody = method.child_by_field_name("body")
-                    if mname == "render" and mbody:
-                        jsx_children.extend(_collect_jsx_children(mbody, source))
-                    if mbody:
-                        fetch_calls.extend(_collect_fetch_axios(mbody, source))
+        jsx_children, lifecycle, fetch_calls = self._collect_class_body(class_node, source)
 
         if node_id not in seen_node_ids:
             node = self._node(
@@ -471,29 +514,29 @@ class JSXExtractor(BaseExtractor):
             nodes.append(node)
             seen_node_ids.add(node_id)
 
-        # Render relationships
-        for child_name in set(jsx_children):
-            if child_name == name:
-                continue
-            target_id = self._make_node_id("jsx", rel, child_name)
-            if target_id not in seen_node_ids:
-                nodes.append(
-                    self._node(
-                        id=target_id,
-                        name=child_name,
-                        type="react_component",
-                        file=rel,
-                        line=0,
-                        depth=1,
-                    )
-                )
-                seen_node_ids.add(target_id)
-            edge_id = self._make_edge_id(node_id, target_id)
-            edges.append(
-                self._edge(
-                    id=edge_id,
-                    source=node_id,
-                    target=target_id,
-                    type="render",
-                )
-            )
+        self._create_render_edges(node_id, rel, jsx_children, nodes, edges, seen_node_ids)
+        self._create_fetch_edges(node_id, rel, fetch_calls, line, nodes, edges, seen_node_ids)
+
+    def _collect_class_body(
+        self,
+        class_node: "Node",
+        source: bytes,
+    ) -> tuple[list[str], list[str], list[dict]]:
+        body = class_node.child_by_field_name("body")
+        jsx_children: list[str] = []
+        lifecycle: list[str] = []
+        fetch_calls: list[dict] = []
+        if body:
+            for method in _find_all(body, "method_definition"):
+                mname_node = method.child_by_field_name("name")
+                if not mname_node:
+                    continue
+                mname = _text(mname_node, source)
+                if mname in _LIFECYCLE_METHODS:
+                    lifecycle.append(mname)
+                mbody = method.child_by_field_name("body")
+                if mname == "render" and mbody:
+                    jsx_children.extend(_collect_jsx_children(mbody, source))
+                if mbody:
+                    fetch_calls.extend(_collect_fetch_axios(mbody, source))
+        return jsx_children, lifecycle, fetch_calls

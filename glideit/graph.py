@@ -8,12 +8,15 @@ handles circular call detection, normalizes paths, and writes graph-data.json.
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from glideit import __version__
+
+logger = logging.getLogger(__name__)
 
 
 class GraphAssembler:
@@ -73,42 +76,52 @@ class GraphAssembler:
         2. Remove the stub nodes from self._nodes.
         3. Resolve all edge sources and targets, and update edge IDs.
         """
-        # Map of (prefix, name) -> real_node_id
+        real_definitions = self._build_real_definitions_map()
+        node_id_map, nodes_to_remove = self._build_stub_map(real_definitions)
+
+        for node_id in nodes_to_remove:
+            self._nodes.pop(node_id, None)
+
+        name_to_ids = self._build_name_to_ids_map()
+        self._resolve_edges(node_id_map, name_to_ids)
+
+    def _build_real_definitions_map(self) -> dict[tuple[str, str], str]:
         real_definitions: dict[tuple[str, str], str] = {}
         for node_id, node in self._nodes.items():
             if node.get("line", 0) > 0 and node.get("type") not in ("external_call",):
                 parts = node_id.split(":", 2)
                 if len(parts) == 3:
-                    prefix, _, name = parts
-                    real_definitions[(prefix, name)] = node_id
+                    real_definitions[(parts[0], parts[2])] = node_id
+        return real_definitions
 
-        # Map of stub/unresolved node ID -> real node ID
+    def _build_stub_map(
+        self, real_definitions: dict[tuple[str, str], str]
+    ) -> tuple[dict[str, str], set[str]]:
         node_id_map: dict[str, str] = {}
         nodes_to_remove: set[str] = set()
-
         for node_id, node in self._nodes.items():
             if node.get("line", 0) == 0:
                 parts = node_id.split(":", 2)
                 if len(parts) == 3:
-                    prefix, _, name = parts
-                    real_id = real_definitions.get((prefix, name))
+                    real_id = real_definitions.get((parts[0], parts[2]))
                     if real_id:
                         node_id_map[node_id] = real_id
                         nodes_to_remove.add(node_id)
+        return node_id_map, nodes_to_remove
 
-        # Remove duplicate stub nodes from graph
-        for node_id in nodes_to_remove:
-            self._nodes.pop(node_id, None)
-
-        # Build name_to_ids for remaining nodes to resolve other unmapped edges
+    def _build_name_to_ids_map(self) -> dict[tuple[str, str], list[str]]:
         name_to_ids: dict[tuple[str, str], list[str]] = defaultdict(list)
         for node_id, node in self._nodes.items():
             parts = node_id.split(":", 2)
             if len(parts) == 3:
-                prefix, _, name = parts
-                name_to_ids[(prefix, name)].append(node_id)
+                name_to_ids[(parts[0], parts[2])].append(node_id)
+        return name_to_ids
 
-        # Update edges
+    def _resolve_edges(
+        self,
+        node_id_map: dict[str, str],
+        name_to_ids: dict[tuple[str, str], list[str]],
+    ) -> None:
         resolved_edges: list[dict[str, Any]] = []
         resolved_edge_ids: set[str] = set()
 
@@ -116,22 +129,18 @@ class GraphAssembler:
             source = edge["source"]
             target = edge["target"]
 
-            # Apply stub mapping
             if source in node_id_map:
                 source = node_id_map[source]
             if target in node_id_map:
                 target = node_id_map[target]
 
-            # General name-based resolution for missing target nodes
             if target not in self._nodes:
                 parts = target.split(":", 2)
-                if len(parts) == 3:
-                    prefix, _, name = parts
-                    candidates = name_to_ids.get((prefix, name), [])
-                else:
-                    candidates = []
+                candidates = name_to_ids.get((parts[0], parts[2]), []) if len(parts) == 3 else []
                 if candidates:
                     target = candidates[0]
+                else:
+                    logger.warning("Dangling edge target not in nodes: %s", target)
 
             edge["source"] = source
             edge["target"] = target
@@ -158,14 +167,26 @@ class GraphAssembler:
         Direct callees = depth 1. Nested = depth 2+.
         Uses BFS; circular edges are skipped (already visited).
         """
-        # Build adjacency map: source → [targets]
         adj: dict[str, list[str]] = defaultdict(list)
         for edge in self._edges:
             adj[edge["source"]].append(edge["target"])
 
-        # Identify entry points
-        # flask_route nodes are always entry points
-        # react_component nodes that are NOT imported by any other component are root-level
+        entry_ids = self._identify_entry_points(adj)
+
+        if not entry_ids:
+            for node in self._nodes.values():
+                node.setdefault("depth", 0)
+            return
+
+        depth_map = self._run_bfs(entry_ids, adj)
+
+        for node_id, node in self._nodes.items():
+            node["depth"] = depth_map.get(node_id, 0)
+
+        for edge in self._edges:
+            edge["depth"] = depth_map.get(edge["source"], 0) + 1
+
+    def _identify_entry_points(self, adj: dict[str, list[str]]) -> list[str]:
         imported_components: set[str] = set()
         for edge in self._edges:
             if edge["type"] == "render":
@@ -179,7 +200,6 @@ class GraphAssembler:
             elif t == "react_component" and node_id not in imported_components:
                 entry_ids.append(node_id)
 
-        # Also identify call-graph roots as entry points
         incoming_edges: set[str] = set()
         for edge in self._edges:
             incoming_edges.add(edge["target"])
@@ -187,21 +207,15 @@ class GraphAssembler:
         for node_id, node in self._nodes.items():
             t = node.get("type", "")
             if t == "python_function":
-                # Functions named 'main' are always entry points
                 if node.get("name") == "main" and node_id not in entry_ids:
                     entry_ids.append(node_id)
-                # Functions with outgoing edges but no incoming edges are entry points
                 elif node_id not in incoming_edges and adj.get(node_id):
                     if node_id not in entry_ids:
                         entry_ids.append(node_id)
 
-        if not entry_ids:
-            # Fall back: depth 0 for everyone (no Flask/React entry points found)
-            for node in self._nodes.values():
-                node.setdefault("depth", 0)
-            return
+        return entry_ids
 
-        # BFS
+    def _run_bfs(self, entry_ids: list[str], adj: dict[str, list[str]]) -> dict[str, int]:
         depth_map: dict[str, int] = {}
         queue: deque[tuple[str, int]] = deque()
         for eid in entry_ids:
@@ -215,14 +229,7 @@ class GraphAssembler:
                     depth_map[neighbour] = d + 1
                     queue.append((neighbour, d + 1))
 
-        # Assign depths; unreachable nodes default to 0
-        for node_id, node in self._nodes.items():
-            node["depth"] = depth_map.get(node_id, 0)
-
-        # Update edge depths to match source node depth + 1
-        for edge in self._edges:
-            src_depth = depth_map.get(edge["source"], 0)
-            edge["depth"] = src_depth + 1
+        return depth_map
 
     # ──────────────────────────────────────────
     # Circular / back-edge detection

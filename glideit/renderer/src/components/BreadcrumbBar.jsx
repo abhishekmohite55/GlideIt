@@ -5,13 +5,13 @@
  */
 import PropTypes from 'prop-types'
 
-export function BreadcrumbBar({ path, onNodeClick }) {
-  if (!path || path.length === 0) return null;
-
 BreadcrumbBar.propTypes = {
   path: PropTypes.array,
   onNodeClick: PropTypes.func,
 }
+
+export function BreadcrumbBar({ path, onNodeClick }) {
+  if (!path || path.length === 0) return null;
 
   // Color by node type — matches the node border colors from design doc
   const typeColor = {
@@ -55,14 +55,13 @@ BreadcrumbBar.propTypes = {
             )}
 
             {/* Node name with type color */}
-            <span
+            <button
+              type="button"
               onClick={() => onNodeClick?.(node.id)}
               onKeyDown={e => e.key === 'Enter' && onNodeClick?.(node.id)}
-              role="button"
-              tabIndex={0}
               style={{
                 fontSize: '12px',
-                color: isLast ? '#F0F0F0' : color,   // hovered node is white, ancestors are colored
+                color: isLast ? '#F0F0F0' : color,
                 fontWeight: isLast ? '600' : '400',
                 fontFamily: 'monospace',
                 cursor: onNodeClick ? 'pointer' : 'default',
@@ -70,11 +69,14 @@ BreadcrumbBar.propTypes = {
                 transition: 'color 0.2s',
                 textDecoration: onNodeClick && !isLast ? 'underline' : 'none',
                 textDecorationColor: 'rgba(255, 255, 255, 0.15)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
               }}
               title={onNodeClick ? `Click to center on ${node.name}` : undefined}
             >
               {node.name}
-            </span>
+            </button>
           </span>
         );
       })}

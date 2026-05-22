@@ -129,8 +129,6 @@ export default function GlideNode({ data }) {
       className={`glideit-node glideit-node--${type} ${expanded ? 'expanded' : ''} ${selected ? 'node-selected' : ''}`}
       style={cardStyle}
       onClick={handleClick}
-      role="button"
-      tabIndex={0}
       aria-expanded={expanded}
       aria-label={`${name} — ${type}`}
       onKeyDown={e => e.key === 'Enter' && setExpanded(p => !p)}
@@ -276,13 +274,24 @@ GlideNode.propTypes = {
     type: PropTypes.string,
     file: PropTypes.string,
     line: PropTypes.number,
-    params: PropTypes.array,
-    returns: PropTypes.object,
+    params: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string,
+      type_hint: PropTypes.string,
+      default_value: PropTypes.string,
+    })),
+    returns: PropTypes.shape({
+      type_hint: PropTypes.string,
+      variable_name: PropTypes.string,
+      description: PropTypes.string,
+    }),
     docstring: PropTypes.string,
     http_method: PropTypes.string,
     route_path: PropTypes.string,
-    hooks: PropTypes.array,
-    props: PropTypes.array,
+    hooks: PropTypes.arrayOf(PropTypes.string),
+    props: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string,
+      type_hint: PropTypes.string,
+    })),
     depth: PropTypes.number,
     selected: PropTypes.bool,
     isMainNode: PropTypes.bool,

@@ -31,6 +31,51 @@ import { BreadcrumbBar } from './BreadcrumbBar.jsx'
 const NODE_TYPES = { glideNode: GlideNode }
 const EDGE_TYPES = { parallel: ParallelEdge }
 
+function findFocalNodeForPython(nodes) {
+  let focalNode = nodes.find(n => n.id.endsWith(':main') || n.id === 'main')
+  if (!focalNode) {
+    focalNode = nodes.find(n => n.data?.type === 'flask_route')
+  }
+  if (!focalNode && nodes.length > 0) {
+    focalNode = nodes[0]
+  }
+  return focalNode
+}
+
+function getPythonFocalNodes(nodes, edges) {
+  const focalNode = findFocalNodeForPython(nodes)
+  if (!focalNode) return []
+  const connectedTargets = edges.filter(e => e.source === focalNode.id).map(e => e.target)
+  const connectedSources = edges.filter(e => e.target === focalNode.id).map(e => e.source)
+  const connectedIds = new Set([focalNode.id, ...connectedTargets, ...connectedSources])
+  return nodes.filter(n => connectedIds.has(n.id))
+}
+
+function getReactFocalNodes(nodes, edges) {
+  const incomingEdgeTargets = new Set(edges.map(e => e.target))
+  let roots = nodes.filter(n => !incomingEdgeTargets.has(n.id))
+  if (roots.length === 0 && nodes.length > 0) {
+    roots = [nodes[0]]
+  }
+  if (roots.length === 0) return []
+  const rootIds = new Set(roots.map(r => r.id))
+  edges.filter(e => rootIds.has(e.source)).forEach(e => rootIds.add(e.target))
+  return nodes.filter(n => rootIds.has(n.id))
+}
+
+function performFocalZoom(nodes, edges, focalZoomStrategy) {
+  if (typeof focalZoomStrategy === 'function') {
+    return focalZoomStrategy(nodes, edges)
+  }
+  if (focalZoomStrategy === 'python') {
+    return getPythonFocalNodes(nodes, edges)
+  }
+  if (focalZoomStrategy === 'react') {
+    return getReactFocalNodes(nodes, edges)
+  }
+  return []
+}
+
 function GraphCanvasContent({
   data,
   nodeTypeFilter,         // Set of node types to include, or a function
@@ -191,7 +236,7 @@ function GraphCanvasContent({
   const handleSelectAll = useCallback(() => {
     setNodes(nds => nds.map(n => ({
       ...n,
-      selected: true,
+      data: { ...n.data, selected: true },
       style: { ...n.style, opacity: 1 }
     })))
   }, [setNodes])
@@ -259,38 +304,9 @@ function GraphCanvasContent({
 
   // Focal Zoom effect on initial load
   useEffect(() => {
-    if (nodes.length === 0 || layoutLoading || hasFocalZoomed.current) return
+    if (nodes.length === 0 || layoutLoading || hasFocalZoomed.current) return;
 
-    let nodesToFocus = []
-
-    if (typeof focalZoomStrategy === 'function') {
-      nodesToFocus = focalZoomStrategy(nodes, edges)
-    } else if (focalZoomStrategy === 'python') {
-      let focalNode = nodes.find(n => n.id.endsWith(':main') || n.id === 'main')
-      if (!focalNode) {
-        focalNode = nodes.find(n => n.data?.type === 'flask_route')
-      }
-      if (!focalNode && nodes.length > 0) {
-        focalNode = nodes[0]
-      }
-      if (focalNode) {
-        const connectedTargets = edges.filter(e => e.source === focalNode.id).map(e => e.target)
-        const connectedSources = edges.filter(e => e.target === focalNode.id).map(e => e.source)
-        const connectedIds = new Set([focalNode.id, ...connectedTargets, ...connectedSources])
-        nodesToFocus = nodes.filter(n => connectedIds.has(n.id))
-      }
-    } else if (focalZoomStrategy === 'react') {
-      const incomingEdgeTargets = new Set(edges.map(e => e.target))
-      let roots = nodes.filter(n => !incomingEdgeTargets.has(n.id))
-      if (roots.length === 0 && nodes.length > 0) {
-        roots = [nodes[0]]
-      }
-      if (roots.length > 0) {
-        const rootIds = new Set(roots.map(r => r.id))
-        edges.filter(e => rootIds.has(e.source)).forEach(e => rootIds.add(e.target))
-        nodesToFocus = nodes.filter(n => rootIds.has(n.id))
-      }
-    }
+    let nodesToFocus = performFocalZoom(nodes, edges, focalZoomStrategy);
 
     if (nodesToFocus.length > 0) {
       hasFocalZoomed.current = true

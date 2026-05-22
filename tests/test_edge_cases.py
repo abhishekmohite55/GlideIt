@@ -100,8 +100,9 @@ class TestSyntaxErrorHandling:
 
             # Invalid Python syntax
             nodes, edges = extractor.extract(test_file, b"def broken(:")
-            # Should return empty, not raise
-            assert nodes == [] or nodes is not None
+            # Should not raise; tree-sitter does error recovery so may still return nodes
+            assert isinstance(nodes, list)
+            assert isinstance(edges, list)
 
     def test_extractor_handles_unicode_corruption(self):
         """PythonExtractor should handle files with invalid UTF-8."""
@@ -113,4 +114,5 @@ class TestSyntaxErrorHandling:
             # Invalid UTF-8 bytes
             nodes, edges = extractor.extract(test_file, b"\xff\xfe def valid():\n    pass\n")
             # Should not crash
-            assert nodes is not None
+            assert isinstance(nodes, list)
+            assert isinstance(edges, list)
