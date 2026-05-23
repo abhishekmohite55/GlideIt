@@ -79,6 +79,13 @@ glideit-out/
 *.sln
 *.sw?
 
+# SonarQube config (optional, not needed for runtime)
+sonar-project.properties
+
+# Local AI assistant config (not project code)
+.github/skills/
+.github/prompts/
+
 # Agent / Workspace specific files
 .agents/
 .agent/
