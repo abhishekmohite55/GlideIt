@@ -36,6 +36,9 @@ glideit run
 
 # Open the interactive graph
 glideit serve
+
+# (Optional) Inject GlideIt docstring skill into your AI coding agents
+glideit init
 ```
 
 Open `http://localhost:8000` and explore your codebase visually.
@@ -88,6 +91,7 @@ Both powered by a shared `BaseExtractor` interface wrapping **Tree-sitter** pars
 | **Smart Focal Zoom** | On load, automatically zooms to the `main()` function or top-level React root component |
 | **Minimap** | Always-visible overview for large graphs — toggle with `M` |
 | **Legend Panel** | Slide-open reference showing node types, edge styles, and every keyboard shortcut |
+| **Graph Archiving** | Snapshot your graph and seamlessly switch between historical graphs via the UI dropdown |
 
 ### ⌨️ Keyboard Shortcuts
 
@@ -112,6 +116,10 @@ Both powered by a shared `BaseExtractor` interface wrapping **Tree-sitter** pars
 | **Auto-serve** | `glideit run --serve` | Parse, build, and launch preview server in one step |
 
 Every output is **fully offline** — open `index.html` directly from disk with zero dependencies, no network, no server.
+
+### 🤖 AI Agent Integration
+
+GlideIt now includes a built-in interactive installer to inject the `glideit-docstring` skill into your favorite AI coding agents (Claude Code, Cursor, Windsurf, Copilot, Cline, RooCode, and 14 others). This skill provides guidelines for agents to generate precise, high-quality docstrings across your codebase. Just run `glideit init`!
 
 ---
 
@@ -186,6 +194,32 @@ glideit serve [directory] [options]
 | `directory` | Output directory to serve (default: `glideit-out/`) |
 | `--port, -p <number>` | Port to bind (default: `8000`, auto-increments if busy) |
 
+### `glideit archive`
+
+Snapshot the current visualization graph into a persistent archive. You can view, load, and delete these archives directly from the frontend UI dropdown in the navbar.
+
+```bash
+glideit archive [options]
+```
+
+| Option | Description |
+|---|---|
+| `--output, -o <dir>` | Output directory where graphs are stored (default: `glideit-out/`) |
+| `--name <label>` | Optional label for the archive; auto-generates a fun name if omitted |
+
+### `glideit init`
+
+Interactively select AI coding agents installed on your system and inject the GlideIt docstring skill into them.
+
+```bash
+glideit init [repo_root] [options]
+```
+
+| Option | Description |
+|---|---|
+| `repo_root` | Path to the workspace root (default: current directory) |
+| `--update` | Update the skill for agents where it is already installed |
+
 ### Examples
 
 ```bash
@@ -204,6 +238,12 @@ glideit run --exclude tests/ "**/__pycache__" migrations/
 
 # Serve existing output on a specific port
 glideit serve --port 3000
+
+# Archive current graph
+glideit archive --name pre-refactor
+
+# Inject AI agent skills
+glideit init
 ```
 
 ---
@@ -230,52 +270,6 @@ pip install -e .
 cd glideit/renderer
 npm install
 npm run dev     # Vite HMR dev server
-```
-
----
-
-## Project Structure
-
-```
-glideit/
-├── glideit/                          # Python CLI package
-│   ├── __init__.py                   # Version & metadata
-│   ├── cli.py                        # CLI parser, run/serve subcommands
-│   ├── walker.py                     # Gitignore-aware file scanner
-│   ├── graph.py                      # Graph assembler, depth/BFS, cycle detection
-│   ├── renderer_builder.py            # Copies pre-built assets, injects graph data
-│   └── extractors/
-│       ├── base.py                   # BaseExtractor abstract class
-│       ├── python_extractor.py       # Tree-sitter Python AST analysis
-│       └── jsx_extractor.py          # Tree-sitter JS/TS/JSX/TSX AST analysis
-├── renderer/                         # React + Vite visualization client
-│   └── src/
-│       ├── main.jsx                  # Entry point
-│       ├── App.jsx                   # Page router, data loading
-│       ├── layout.js                 # ELK.js layout bridge (Web Worker + fallback)
-│       ├── clusterColors.js          # BFS-based subsystem coloring
-│       ├── components/
-│       │   ├── GraphCanvasPage.jsx   # Unified canvas (Python / React / API)
-│       │   ├── GlideNode.jsx         # Custom ReactFlow node renderer
-│       │   ├── ParallelEdge.jsx      # Custom edge with animated dots
-│       │   ├── CanvasToolbar.jsx     # Direction toggle + node/edge count
-│       │   ├── LegendPanel.jsx       # Legend & keyboard shortcuts
-│       │   ├── BreadcrumbBar.jsx     # Hover-based trace indicator
-│       │   ├── Navbar.jsx            # Top navigation bar
-│       │   ├── ErrorBoundary.jsx     # Error boundary
-│       │   ├── CodeFlowPage.jsx      # Python function graph page
-│       │   ├── ApiPage.jsx           # Flask route cards page
-│       │   └── JsxPage.jsx           # React component tree page
-│       ├── hooks/
-│       │   ├── useKeyBindings.js     # Global keyboard shortcuts
-│       │   └── useSpacePan.js        # Space+drag pan behavior
-│       ├── utils/
-│       │   ├── layout.js             # ReactFlow node/edge style utilities
-│       │   └── findPathToRoot.js     # BFS back-trace path resolver
-│       └── styles/
-│           └── index.css             # Dark theme stylesheet
-├── pyproject.toml                    # Python build config (Poetry/PIP)
-└── README.md
 ```
 
 ---
