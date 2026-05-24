@@ -66,6 +66,17 @@ def cmd_run(args: argparse.Namespace) -> int:
         logger.error(_red(f"Repo root does not exist: {repo_root}"))
         return 1
 
+    # ── Agent skill tip ───────────────────────
+    from glideit.agent_registry import AGENTS, skill_already_installed
+    agents_with_skill = [a for a in AGENTS if skill_already_installed(repo_root, a)]
+    if not agents_with_skill:
+        from glideit.agent_registry import config_dir_exists
+        agents_with_config = [a for a in AGENTS if config_dir_exists(repo_root, a)]
+        if agents_with_config:
+            print(_cyan("Tip:") + " Coding agent(s) detected but GlideIt skill not set up.")
+            print("     Run " + _bold("glideit init") + " to enable auto-docstring generation.")
+            print()
+
     print(_bold(_cyan("GlideIt") + " — scanning project..."))
 
     walker = Walker(repo_root, exclude_patterns=args.exclude)
@@ -168,6 +179,101 @@ def cmd_archive(args: argparse.Namespace) -> int:
         _green("Archive created:")
         + f" {_bold(entry['name'])} ({entry['filename']})"
     )
+    return 0
+
+
+# ──────────────────────────────────────────────
+# Subcommand: init
+# ──────────────────────────────────────────────
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Interactively select agents and inject the GlideIt docstring skill."""
+    from glideit.agent_picker import run_picker
+    from glideit.agent_registry import get_agent
+    from glideit.skill_injector import get_skill_content, inject_skill
+
+    repo_root = Path(args.repo_root).resolve()
+
+    if not repo_root.exists():
+        logger.error(_red(f"Directory does not exist: {repo_root}"))
+        return 1
+
+    update_mode = args.update
+
+    if update_mode:
+        print()
+        print(_bold(_cyan("GlideIt Init") + " --update") + " — updating existing skill installations...")
+    else:
+        print()
+        print(_bold(_cyan("GlideIt Init")) + " — set up the docstring skill for your AI coding agents.")
+
+    selected_ids = run_picker(repo_root, update_mode=update_mode)
+
+    if selected_ids is None:
+        print(_yellow("Aborted. No changes made."))
+        return 0
+
+    if not selected_ids:
+        if update_mode:
+            print(_yellow("No agents with an installed skill were found. Run 'glideit init' first."))
+        else:
+            print(_yellow("No agents selected. Nothing to do."))
+        return 0
+
+    print()
+    print(f"Setting up {_bold(str(len(selected_ids)))} agent(s)...")
+    print()
+
+    try:
+        skill_content = get_skill_content()
+    except FileNotFoundError as exc:
+        logger.error(_red(str(exc)))
+        return 1
+
+    results = []
+    errors = []
+
+    for agent_id in selected_ids:
+        agent = get_agent(agent_id)
+        if agent is None:
+            errors.append((agent_id, "Unknown agent ID"))
+            continue
+        try:
+            path, action = inject_skill(repo_root, agent, skill_content)
+            rel = path.relative_to(repo_root)
+            results.append((agent.display_name, action, rel))
+        except Exception as exc:
+            errors.append((agent.display_name, str(exc)))
+
+    check = "\u2713"
+    cross = "\u2717"
+    arrow = "\u2192"
+    for display_name, action, rel in results:
+        icon = _green(check)
+        action_label = _green("created") if action == "created" else _cyan("updated")
+        print(f"  {icon} {display_name:<30} {action_label}  {arrow}  {rel}")
+
+    for display_name, error in errors:
+        print(f"  {_red(cross)} {display_name:<30} {_red('failed')}: {error}")
+
+    print()
+
+    if results:
+        print(_green("Done!") + " Skill injected successfully.")
+        print()
+        print(_bold("Next steps:"))
+        print("  1. Open your AI coding agent in this workspace.")
+        print("  2. Trigger the skill by typing:  " + _cyan("/glideit-docstring"))
+        print("     (or the equivalent natural language command for your agent)")
+        print("  3. The agent will scan your codebase and add docstrings to all functions.")
+        print("  4. Once done, run " + _cyan("glideit run") + " to regenerate the visualization.")
+        print()
+
+    if errors:
+        print(_yellow(f"  {len(errors)} agent(s) failed. Check the errors above."))
+        return 1
+
     return 0
 
 
@@ -370,6 +476,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional human-friendly label for the archive (e.g. 'pre-refactor')",
     )
 
+    # init parser
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Interactively select AI coding agents and inject the GlideIt docstring skill",
+    )
+    init_parser.add_argument(
+        "repo_root",
+        nargs="?",
+        default=".",
+        help="Path to the workspace root (default: current directory)",
+    )
+    init_parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Update the skill for agents where it is already installed",
+    )
+
     return parser
 
 
@@ -387,3 +510,5 @@ def main() -> None:
         sys.exit(cmd_serve(args))
     elif args.command == "archive":
         sys.exit(cmd_archive(args))
+    elif args.command == "init":
+        sys.exit(cmd_init(args))

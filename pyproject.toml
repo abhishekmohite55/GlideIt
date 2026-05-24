@@ -47,4 +47,4 @@ include = ["glideit*"]
 version = {attr = "glideit.__version__"}
 
 [tool.setuptools.package-data]
-glideit = ["renderer/dist/**/*", "renderer/dist-single/**/*"]
+glideit = ["renderer/dist/**/*", "renderer/dist-single/**/*", "skills/**/*"]
