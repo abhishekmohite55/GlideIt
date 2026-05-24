@@ -180,7 +180,6 @@ def _build_archive_handler(directory: Path):
     """Build an HTTP request handler that also handles the archive DELETE API."""
     import http.server
     import json as json_module
-    from urllib.parse import parse_qs
 
     class ArchiveHandler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
@@ -198,9 +197,9 @@ def _build_archive_handler(directory: Path):
             self.wfile.write(body)
 
         def do_DELETE(self) -> None:
-            from glideit.archive import delete_archive
-
             import re
+
+            from glideit.archive import delete_archive
 
             match = re.match(r"^/api/archives/([a-f0-9]+)$", self.path)
             if not match:

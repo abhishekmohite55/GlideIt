@@ -194,7 +194,7 @@ glideit run
 glideit serve
 
 # Single-file portable output
-glideit run --single --serve
+glideit run --single
 
 # Custom output location
 glideit run ../my-project --output ./visuals
