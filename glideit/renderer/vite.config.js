@@ -1,13 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import archivePlugin from './vite-plugin-archive.js'
 
 const isSingleFile = process.env.VITE_SINGLE_FILE === 'true'
 
 export default defineConfig({
   plugins: [
     react(),
-    isSingleFile && viteSingleFile()
+    isSingleFile && viteSingleFile(),
+    archivePlugin(),
   ].filter(Boolean),
   base: './',
   worker: {

@@ -28,10 +28,20 @@ def build_renderer(output_dir: Path, graph_data: str, single_file: bool = False)
         raise FileNotFoundError(f"Pre-built renderer not found at {dist_dir}")
 
     # Clean output dir to prevent leftover files from previous runs,
-    # then copy fresh (copytree creates the destination directory itself)
+    # then copy fresh (copytree creates the destination directory itself).
+    # Preserve archives/ directory so saved graph snapshots survive rebuilds.
     if output_dir.exists():
-        shutil.rmtree(output_dir)
-    shutil.copytree(dist_dir, output_dir)
+        for item in output_dir.iterdir():
+            if item.name == "archives":
+                continue
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+    else:
+        output_dir.mkdir(parents=True)
+
+    shutil.copytree(dist_dir, output_dir, dirs_exist_ok=True)
 
     if single_file:
         print("  Injecting graph data into single HTML bundle...")

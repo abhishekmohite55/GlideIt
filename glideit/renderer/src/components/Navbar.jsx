@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types'
 import React from 'react'
+import ArchiveSelector from './ArchiveSelector.jsx'
 
 const PAGES = [
   { id: 'codeflow', label: 'Code Flow' },
@@ -31,7 +32,7 @@ function GitHubIcon() {
   )
 }
 
-export default function Navbar({ activePage, onNavigate }) {
+export default function Navbar({ activePage, onNavigate, archives, activeArchive, onSelectArchive, onDeleteArchive }) {
   return (
     <nav className="navbar" role="navigation" aria-label="Main navigation">
       {/* Logo */}
@@ -57,6 +58,14 @@ export default function Navbar({ activePage, onNavigate }) {
         ))}
       </ul>
 
+      {/* Archive selector */}
+      <ArchiveSelector
+        archives={archives}
+        activeArchive={activeArchive}
+        onSelect={onSelectArchive}
+        onDelete={onDeleteArchive}
+      />
+
       {/* GitHub CTA */}
       <a
         id="navbar-github-link"
@@ -76,4 +85,12 @@ export default function Navbar({ activePage, onNavigate }) {
 Navbar.propTypes = {
   activePage: PropTypes.string.isRequired,
   onNavigate: PropTypes.func.isRequired,
+  archives: PropTypes.array,
+  activeArchive: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    filename: PropTypes.string.isRequired,
+  }),
+  onSelectArchive: PropTypes.func,
+  onDeleteArchive: PropTypes.func,
 }
