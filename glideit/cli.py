@@ -143,8 +143,78 @@ def _process_extracted_files(
 
 
 # ──────────────────────────────────────────────
+# Subcommand: archive
+# ──────────────────────────────────────────────
+
+
+def cmd_archive(args: argparse.Namespace) -> int:
+    """Create a snapshot archive of the current graph data."""
+    from glideit.archive import create_archive
+
+    output_dir = Path(args.output).resolve()
+    graph_path = output_dir / "graph-data.json"
+
+    if not graph_path.exists():
+        logger.error(
+            _red(
+                f"Graph data not found at {graph_path}. "
+                "Run 'glideit run' first."
+            )
+        )
+        return 1
+
+    entry = create_archive(output_dir, name=args.name)
+    print(
+        _green("Archive created:")
+        + f" {_bold(entry['name'])} ({entry['filename']})"
+    )
+    return 0
+
+
+# ──────────────────────────────────────────────
 # Subcommand: serve & Local Web Server Logic
 # ──────────────────────────────────────────────
+
+
+def _build_archive_handler(directory: Path):
+    """Build an HTTP request handler that also handles the archive DELETE API."""
+    import http.server
+    import json as json_module
+    from urllib.parse import parse_qs
+
+    class ArchiveHandler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(directory), **kwargs)
+
+        def log_message(self, msg_format, *args):
+            pass
+
+        def _send_json(self, status: int, data: dict) -> None:
+            body = json_module.dumps(data).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_DELETE(self) -> None:
+            from glideit.archive import delete_archive
+
+            import re
+
+            match = re.match(r"^/api/archives/([a-f0-9]+)$", self.path)
+            if not match:
+                self._send_json(404, {"error": "Not found"})
+                return
+
+            archive_id = match.group(1)
+            success = delete_archive(directory, archive_id)
+            if success:
+                self._send_json(200, {"success": True})
+            else:
+                self._send_json(404, {"error": "Archive not found"})
+
+    return ArchiveHandler
 
 
 def start_server(directory: Path, port: int = 8000) -> int:
@@ -153,21 +223,14 @@ def start_server(directory: Path, port: int = 8000) -> int:
     import webbrowser
     from threading import Thread
 
-    class Handler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=str(directory), **kwargs)
-
-        def log_message(self, msg_format, *args):
-            # Suppress request spam in the terminal
-            pass
-
+    handler = _build_archive_handler(directory)
     attempts = 0
     actual_port = port
     server = None
 
     while attempts < MAX_PORT_ATTEMPTS:
         try:
-            server = http.server.ThreadingHTTPServer(("", actual_port), Handler)
+            server = http.server.ThreadingHTTPServer(("", actual_port), handler)
             break
         except OSError:
             actual_port += 1
@@ -287,6 +350,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Port to start the local web server on (default: 8000)",
     )
 
+    # archive parser
+    archive_parser = subparsers.add_parser(
+        "archive",
+        help="Snapshot the current graph data into an archive entry",
+    )
+    archive_parser.add_argument(
+        "--output",
+        "-o",
+        default="glideit-out",
+        metavar="DIR",
+        help="Output directory containing graph-data.json (default: glideit-out/)",
+    )
+    archive_parser.add_argument(
+        "--name",
+        "-n",
+        type=str,
+        default=None,
+        metavar="LABEL",
+        help="Optional human-friendly label for the archive (e.g. 'pre-refactor')",
+    )
+
     return parser
 
 
@@ -302,3 +386,5 @@ def main() -> None:
         sys.exit(cmd_run(args))
     elif args.command == "serve":
         sys.exit(cmd_serve(args))
+    elif args.command == "archive":
+        sys.exit(cmd_archive(args))

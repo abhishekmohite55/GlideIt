@@ -282,6 +282,148 @@ body {
 }
 
 /* ══════════════════════════════════════════════
+   ARCHIVE SELECTOR (dropdown in navbar)
+══════════════════════════════════════════════ */
+.archive-selector {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.archive-selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-family: var(--font-base);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.archive-selector-trigger:hover {
+  color: var(--color-text-primary);
+  background: rgba(255,255,255,0.1);
+}
+
+.archive-selector-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1100;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: rgba(30, 30, 30, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  padding: 4px;
+}
+
+.archive-selector-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-family: var(--font-base);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  text-align: left;
+}
+
+.archive-selector-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.archive-selector-item.active {
+  color: var(--color-text-primary);
+  background: rgba(30, 144, 255, 0.1);
+}
+
+.archive-selector-item-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-selector-item-time {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.archive-selector-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.archive-selector-item-row .archive-selector-item {
+  flex: 1;
+}
+
+.archive-selector-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.archive-selector-delete:hover {
+  color: #FF4444;
+  background: rgba(255, 68, 68, 0.1);
+}
+
+.archive-selector-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.archive-selector-empty code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ══════════════════════════════════════════════
    CANVAS / FLOW WRAPPER
 ══════════════════════════════════════════════ */
 .flow-canvas-wrapper {
