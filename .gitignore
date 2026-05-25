@@ -91,7 +91,8 @@ sonar-project.properties
 .agent/
 openspec/
 masterDoc/
-Documentation/
+Documentation/*
+!Documentation/assets/
 
 # Exceptions to allow committing pre-built renderer assets
 !glideit/renderer/dist/
