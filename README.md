@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./Banner.jpg" alt="GlideIt Banner" width="100%" />
+  <img src="./Documentation/assets/Banner.jpg" alt="GlideIt Banner" width="100%" />
 </p>
 
 
