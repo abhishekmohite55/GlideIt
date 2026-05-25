@@ -1,27 +1,13 @@
 import PropTypes from 'prop-types'
 import React from 'react'
 import ArchiveSelector from './ArchiveSelector.jsx'
+import logoUrl from '../Logo.png'
 
 const PAGES = [
   { id: 'codeflow', label: 'Code Flow' },
   { id: 'api',      label: 'API' },
   { id: 'jsx',      label: 'JSX Components' },
 ]
-
-// GlideIt lightning-bolt logo mark (inline SVG)
-function LogoMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <polygon
-        points="11,2 4,11 10,11 9,18 16,9 10,9"
-        fill="#1E90FF"
-        stroke="#1E90FF"
-        strokeWidth="0.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
 // GitHub icon
 function GitHubIcon() {
@@ -37,7 +23,7 @@ export default function Navbar({ activePage, onNavigate, archives, activeArchive
     <nav className="navbar" role="navigation" aria-label="Main navigation">
       {/* Logo */}
       <div className="navbar-logo">
-        <LogoMark />
+        <img src={logoUrl} alt="GlideIt Logo" width="26" height="26" style={{ borderRadius: '4px', objectFit: 'contain' }} />
         <span className="navbar-wordmark">GlideIt</span>
       </div>
 
