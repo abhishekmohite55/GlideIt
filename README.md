@@ -1,9 +1,11 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/GlideIt-v1.0.0-1E90FF?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cG9seWdvbiBwb2ludHM9IjExLDIgNCwxMSAxMCwxMSA5LDE4IDE2LDkgMTAsOSIgZmlsbD0iIzFFOTBGRiIgc3Ryb2tlPSIjMUU5MEZGIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==">
-    <img src="https://img.shields.io/badge/GlideIt-v1.0.0-1E90FF?style=for-the-badge" alt="GlideIt">
-  </picture>
+  <img src="./Banner.webp" alt="GlideIt Banner" width="100%" />
 </p>
+
+<p align="center">
+  <img src="./Logo.png" alt="GlideIt Logo" width="160" />
+</p>
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
