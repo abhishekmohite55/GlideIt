@@ -1,9 +1,5 @@
 <p align="center">
-  <img src="./Banner.webp" alt="GlideIt Banner" width="100%" />
-</p>
-
-<p align="center">
-  <img src="./Logo.png" alt="GlideIt Logo" width="160" />
+  <img src="./Banner.jpg" alt="GlideIt Banner" width="100%" />
 </p>
 
 
