@@ -32,6 +32,11 @@ class GraphAssembler:
     # Public API
     # ──────────────────────────────────────────
 
+    @property
+    def nodes(self) -> list[dict[str, Any]]:
+        """Expose the current list of resolved nodes (post-merge, pre-serialize)."""
+        return list(self._nodes.values())
+
     def add(self, nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> None:
         """Add nodes and edges from a single file extraction."""
         for node in nodes:

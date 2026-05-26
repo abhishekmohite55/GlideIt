@@ -18,9 +18,11 @@ import '@xyflow/react/dist/style.css'
 
 import GlideNode from './GlideNode.jsx'
 import ParallelEdge from './ParallelEdge.jsx'
+import ApiPage from './ApiPage.jsx'
 import { toFlowEdges, toFlowNodes, applyFlowStyles } from '../utils/layout.js'
-import { getElkLayout } from '../layout.js'
+import { getElkLayout, terminateWorker } from '../layout.js'
 import { buildClusterColorMap } from '../clusterColors.js'
+import { ToggleContext } from '../utils/ToggleContext.js'
 import { useSpacePan } from '../hooks/useSpacePan.js'
 import { useKeyBindings } from '../hooks/useKeyBindings.js'
 import { CanvasToolbar } from './CanvasToolbar.jsx'
@@ -78,12 +80,20 @@ function performFocalZoom(nodes, edges, focalZoomStrategy) {
 
 function GraphCanvasContent({
   data,
-  nodeTypeFilter,         // Set of node types to include, or a function
-  edgeTypeFilter,         // Function to filter edges: (edge, nodeIds) => bool
+  nodeTypeFilter,
+  edgeTypeFilter,
   emptyStateTitle,
   emptyStateMessage,
-  minimapNodeColor,       // Function: (node) => color string
-  focalZoomStrategy,      // 'python' | 'react' | custom function
+  minimapNodeColor,
+  focalZoomStrategy,
+  canvasToggle,
+  onToggleChange,
+  apiViewMode,
+  onApiViewModeChange,
+  highlightNodeId,
+  onHighlightConsumed,
+  selectedNodeId,
+  onSelectedNodeChange,
 }) {
   const { nodes: graphNodes, edges: graphEdges } = data
   const { fitView, setViewport, getViewport, getNode, setCenter } = useReactFlow()
@@ -114,10 +124,29 @@ function GraphCanvasContent({
     [filteredNodes, filteredEdges]
   )
 
-  const [selectedId, setSelectedId] = useState(null)
-  const [showMinimap, setShowMinimap] = useState(true)
+  const [selectedId, setSelectedId] = useState(selectedNodeId || null)
+  const [showMinimap, setShowMinimap] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
   const [layoutDir, setLayoutDir] = useState('DOWN')
+
+  const isServerMode = typeof globalThis.__GLIDEIT_DATA__ === 'undefined'
+
+  const navigateToNode = useCallback((nodeId) => {
+    const target = getNode(nodeId)
+    if (!target) return
+    setCenter(
+      target.position.x + (target.width ?? 260) / 2,
+      target.position.y + (target.height ?? 90) / 2,
+      { zoom: 1.2, duration: 400 }
+    )
+    setSelectedId(nodeId)
+  }, [getNode, setCenter])
+
+  // Sync selectedId changes up to App
+  useEffect(() => {
+    onSelectedNodeChange?.(selectedId)
+  }, [selectedId, onSelectedNodeChange])
+
   const [layoutTrigger, setLayoutTrigger] = useState(0)
 
   useEffect(() => {
@@ -170,14 +199,18 @@ function GraphCanvasContent({
     return keys
   }, [hoveredPath, lockedPath])
 
+  const expandedRef = useRef(new Map())
+
   const onToggleExpanded = useCallback((id) => {
+    const current = expandedRef.current.get(id) ?? false
+    expandedRef.current.set(id, !current)
     setNodes(nds => nds.map(n => {
       if (n.id === id) {
         return {
           ...n,
           data: {
             ...n.data,
-            expanded: !n.data.expanded
+            expanded: !current
           }
         }
       }
@@ -186,8 +219,8 @@ function GraphCanvasContent({
   }, [setNodes])
 
   const rawNodes = useMemo(
-    () => toFlowNodes(filteredNodes, selectedId, clusterColorMap, onToggleExpanded),
-    [filteredNodes, selectedId, clusterColorMap, onToggleExpanded]
+    () => toFlowNodes(filteredNodes, clusterColorMap),
+    [filteredNodes, clusterColorMap]
   )
   const rawEdges = useMemo(
     () => toFlowEdges(filteredEdges, clusterColorMap),
@@ -212,19 +245,26 @@ function GraphCanvasContent({
   }, [rawNodes, rawEdges, layoutDir, layoutTrigger])
 
   // Styling applier
+  const styledResult = useMemo(
+    () => {
+      if (layoutedNodes.length === 0) return null
+      return applyFlowStyles(
+        layoutedNodes,
+        layoutedEdges,
+        selectedId,
+        clusterColorMap,
+        highlightedPathIds,
+        highlightedEdgeKeys
+      )
+    },
+    [layoutedNodes, layoutedEdges, selectedId, clusterColorMap, highlightedPathIds, highlightedEdgeKeys]
+  )
+
   useEffect(() => {
-    if (layoutedNodes.length === 0) return
-    const { nodes: styledNodes, edges: styledEdges } = applyFlowStyles(
-      layoutedNodes,
-      layoutedEdges,
-      selectedId,
-      clusterColorMap,
-      highlightedPathIds,
-      highlightedEdgeKeys
-    )
-    setNodes(styledNodes)
-    setEdges(styledEdges)
-  }, [layoutedNodes, layoutedEdges, selectedId, clusterColorMap, highlightedPathIds, highlightedEdgeKeys, setNodes, setEdges])
+    if (!styledResult) return
+    setNodes(styledResult.nodes)
+    setEdges(styledResult.edges)
+  }, [styledResult, setNodes, setEdges])
 
   const isPanning = useSpacePan()
 
@@ -371,6 +411,21 @@ function GraphCanvasContent({
     return () => wrapper.removeEventListener('wheel', handleWheel, { capture: true })
   }, [getViewport, setViewport])
 
+  // Handle highlightNodeId from external (right panel, file tree)
+  useEffect(() => {
+    if (!highlightNodeId || nodes.length === 0 || layoutLoading) return
+    const target = getNode(highlightNodeId)
+    if (target) {
+      setSelectedId(highlightNodeId)
+      setCenter(
+        target.position.x + (target.width ?? 260) / 2,
+        target.position.y + (target.height ?? 90) / 2,
+        { zoom: 1.2, duration: 400 }
+      )
+      onHighlightConsumed?.()
+    }
+  }, [highlightNodeId, nodes.length, layoutLoading, getNode, setCenter, onHighlightConsumed])
+
   // Clear hover timeouts on unmount
   useEffect(() => {
     return () => {
@@ -380,25 +435,92 @@ function GraphCanvasContent({
     }
   }, [])
 
-  if (filteredNodes.length === 0) {
+  // Terminate shared Web Worker on page unload
+  useEffect(() => {
+    globalThis.addEventListener('beforeunload', terminateWorker)
+    return () => globalThis.removeEventListener('beforeunload', terminateWorker)
+  }, [])
+
+  // Inline toggle bar
+  const toggleBar = (
+    <div className="canvas-toggle-bar canvas-toggle-bar--segmented">
+      {[
+        { id: 'codeflow', label: '\u26A1 Code Flow' },
+        { id: 'api', label: '\uD83D\uDD17 API' },
+        { id: 'jsx', label: '\u269B JSX Components' },
+      ].map((t, i, arr) => (
+        <button
+          key={t.id}
+          className={`canvas-toggle-btn canvas-toggle-btn--segmented 
+            ${canvasToggle === t.id ? 'active' : ''}
+            ${i === 0 ? 'segmented-first' : ''}
+            ${i === arr.length - 1 ? 'segmented-last' : ''}`}
+          onClick={() => {
+            onToggleChange?.(t.id)
+            if (t.id !== 'api') onApiViewModeChange?.('graph')
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+      {canvasToggle === 'api' && (
+        <>
+          <span className="canvas-toggle-segmented-sep" />
+          <button
+            className={`canvas-toggle-btn canvas-toggle-btn--segmented canvas-toggle-btn--sub 
+              ${apiViewMode === 'graph' ? 'active' : ''}
+              segmented-first`}
+            onClick={() => onApiViewModeChange?.('graph')}
+          >
+            {'\uD83D\uDCCA'} Graph
+          </button>
+          <button
+            className={`canvas-toggle-btn canvas-toggle-btn--segmented canvas-toggle-btn--sub 
+              ${apiViewMode === 'list' ? 'active' : ''}
+              segmented-last`}
+            onClick={() => onApiViewModeChange?.('list')}
+          >
+            {'\uD83D\uDCCB'} List
+          </button>
+        </>
+      )}
+    </div>
+  )
+
+  // API list view
+  if (canvasToggle === 'api' && apiViewMode === 'list') {
     return (
-      <div className="empty-state">
-        <h2>{emptyStateTitle}</h2>
-        <p>{emptyStateMessage}</p>
+      <div
+        ref={wrapperRef}
+        className="flow-canvas-wrapper"
+        style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
+      >
+        {toggleBar}
+        <ApiListView data={data} />
       </div>
     )
   }
 
-  return (
-    <div
-      ref={wrapperRef}
-      className="flow-canvas-wrapper"
-      style={{
-        cursor: isPanning ? 'grab' : 'default',
-        width: '100%',
-        height: '100%',
-      }}
-    >
+  // Graph view (codeflow, jsx, or api+graph)
+  if (filteredNodes.length === 0) {
+    return (
+      <div
+        ref={wrapperRef}
+        className="flow-canvas-wrapper"
+        style={{ width: '100%', height: '100%' }}
+      >
+        {toggleBar}
+        <div className="empty-state">
+          <h2>{emptyStateTitle}</h2>
+          <p>{emptyStateMessage}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const graphContent = (
+    <>
+      {toggleBar}
       <BreadcrumbBar
         path={hoveredPath.length > 0 ? hoveredPath : (lockedPath || [])}
         onNodeClick={handleBreadcrumbNodeClick}
@@ -432,6 +554,7 @@ function GraphCanvasContent({
         selectionOnDrag={!isPanning}
         fitView
         fitViewOptions={{ padding: 0.15 }}
+        onlyRenderVisibleElements
         minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{
@@ -440,11 +563,12 @@ function GraphCanvasContent({
           style: { strokeWidth: 1.5 },
         }}
         attributionPosition="bottom-left"
-        style={{ background: '#0F0F0F' }}
+        style={{ background: '#0D0D0D' }}
       >
-        <Background color="#1a1a1a" gap={24} size={1} />
+        <Background variant="dots" color="#2A2A2A" gap={20} size={1.5} />
         <Controls
           className="flow-controls"
+          position="top-left"
           showInteractive={false}
         />
         {showMinimap && (
@@ -458,6 +582,16 @@ function GraphCanvasContent({
           />
         )}
       </ReactFlow>
+
+      {/* Bottom bar */}
+      <footer className="canvas-bottom-bar">
+        <span className="canvas-bottom-bar-left">
+          {layoutDir === 'DOWN' ? '\u2191' : '\u2192'} {layoutDir === 'DOWN' ? 'TB' : 'LR'}
+        </span>
+        <span className="canvas-bottom-bar-right">
+          {nodes.length} nodes &middot; {edges.length} edges
+        </span>
+      </footer>
 
       {layoutLoading && (
         <div className="layout-loading-overlay">
@@ -505,7 +639,23 @@ function GraphCanvasContent({
         isOpen={showLegend}
         onClose={() => setShowLegend(false)}
       />
-    </div>
+    </>
+  )
+
+  return (
+    <ToggleContext.Provider value={onToggleExpanded}>
+      <div
+        ref={wrapperRef}
+        className="flow-canvas-wrapper"
+        style={{
+          cursor: isPanning ? 'grab' : 'default',
+          width: '100%',
+          height: '100%',
+        }}
+      >
+        {graphContent}
+      </div>
+    </ToggleContext.Provider>
   )
 }
 
@@ -517,6 +667,14 @@ GraphCanvasContent.propTypes = {
   emptyStateMessage: PropTypes.string.isRequired,
   minimapNodeColor: PropTypes.func,
   focalZoomStrategy: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
+  canvasToggle: PropTypes.string,
+  onToggleChange: PropTypes.func,
+  apiViewMode: PropTypes.string,
+  onApiViewModeChange: PropTypes.func,
+  highlightNodeId: PropTypes.string,
+  onHighlightConsumed: PropTypes.func,
+  selectedNodeId: PropTypes.string,
+  onSelectedNodeChange: PropTypes.func,
 }
 
 export default function GraphCanvasPage(props) {
@@ -525,4 +683,18 @@ export default function GraphCanvasPage(props) {
       <GraphCanvasContent {...props} />
     </ReactFlowProvider>
   )
+}
+
+/* ── ApiListView: compact route-card list for the canvas area ── */
+
+function ApiListView({ data }) {
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+      <ApiPage data={data} />
+    </div>
+  )
+}
+
+ApiListView.propTypes = {
+  data: PropTypes.object.isRequired,
 }

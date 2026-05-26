@@ -57,9 +57,10 @@ export function buildClusterColorMap(nodes, edges) {
     // BFS from this entry point to find all reachable nodes
     const visited = new Set();
     const queue = [ep.id];
+    let head = 0;
 
-    while (queue.length > 0) {
-      const current = queue.shift();
+    while (head < queue.length) {
+      const current = queue[head++];
       if (visited.has(current)) continue;
       visited.add(current);
 

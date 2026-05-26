@@ -1,3 +1,23 @@
+// Shared Web Worker instance — created once, reused across all layout calls
+let elkWorker = null
+
+function getWorker() {
+  if (!elkWorker) {
+    elkWorker = new Worker(
+      new URL('./elkWorker.js', import.meta.url),
+      { type: 'module' }
+    )
+  }
+  return elkWorker
+}
+
+export function terminateWorker() {
+  if (elkWorker) {
+    elkWorker.terminate()
+    elkWorker = null
+  }
+}
+
 // Default ELK options for a clean hierarchical layout
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
@@ -44,14 +64,10 @@ export function getElkLayout(nodes, edges, direction = 'DOWN') {
   };
 
   try {
-    const worker = new Worker(
-      new URL('./elkWorker.js', import.meta.url),
-      { type: 'module' }
-    );
+    const worker = getWorker();
 
     return new Promise((resolve, reject) => {
-      worker.onmessage = (event) => {
-        worker.terminate();
+      function onMessage(event) {
         if (event.data.success) {
           const layouted = event.data.result;
           const layoutedNodes = mapLayoutResult(layouted, nodes);
@@ -59,12 +75,15 @@ export function getElkLayout(nodes, edges, direction = 'DOWN') {
         } else {
           reject(new Error(event.data.error));
         }
-      };
+      }
 
-      worker.onerror = () => {
-        worker.terminate();
+      function onError() {
+        elkWorker = null;
         fallbackLayout(elkGraph, nodes, edges).then(resolve).catch(reject);
-      };
+      }
+
+      worker.addEventListener('message', onMessage, { once: true });
+      worker.addEventListener('error', onError, { once: true });
 
       worker.postMessage({ graph: elkGraph });
     });

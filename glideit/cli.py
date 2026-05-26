@@ -46,6 +46,43 @@ def _bold(s: str) -> str:
     return f"\033[1m{s}\033[0m"
 
 
+def _capture_git_info(repo_root: Path) -> dict[str, str | None | list[str]]:
+    """Capture the current branch name, all branches, and remote origin URL."""
+    branch: str | None = None
+    remote: str | None = None
+    all_branches: list[str] = []
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True, text=True, timeout=10, cwd=str(repo_root),
+        )
+        if result.returncode == 0:
+            branch = result.stdout.strip() or None
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--list"],
+            capture_output=True, text=True, timeout=15, cwd=str(repo_root),
+        )
+        if result.returncode == 0:
+            all_branches = [
+                line.strip().lstrip("* ") for line in result.stdout.strip().split("\n") if line.strip()
+            ]
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=10, cwd=str(repo_root),
+        )
+        if result.returncode == 0:
+            remote = result.stdout.strip() or None
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    return {"branch": branch, "remote": remote, "all_branches": all_branches}
+
+
 # ──────────────────────────────────────────────
 # Subcommand: run
 # ──────────────────────────────────────────────
@@ -107,6 +144,31 @@ def cmd_run(args: argparse.Namespace) -> int:
         file_count=len(py_files) + len(jsx_files),
         language_counts={"python": len(py_files), "jsx": len(jsx_files)},
     )
+
+    # ── Inject health analysis ────────────────
+    import json as _json
+    graph_dict = _json.loads(graph_json_str)
+
+    from glideit.health import HealthAnalyzer
+    health_data = HealthAnalyzer().analyze(repo_root, assembler.nodes)
+    if health_data is not None:
+        graph_dict["health"] = health_data
+    else:
+        print(_yellow("  [health] Semgrep not available — skipping health analysis. Install: pip install semgrep"))
+
+    # ── Inject git info ───────────────────────
+    graph_dict["meta"]["git"] = _capture_git_info(repo_root)
+
+    # ── Track scanned files ───────────────────
+    graph_dict["meta"]["files_scanned"] = sorted(
+        [str(f.relative_to(repo_root).as_posix()) for f in py_files + jsx_files]
+    )
+
+    # ── Strip source_chunk from nodes ──────────
+    for node in graph_dict.get("nodes", []):
+        node.pop("source_chunk", None)
+
+    graph_json_str = _json.dumps(graph_dict, indent=2, ensure_ascii=False)
 
     # Build/copy renderer assets FIRST (this cleans output_dir and copies fresh assets)
     try:
@@ -318,6 +380,44 @@ def _build_archive_handler(directory: Path):
                 self._send_json(200, {"success": True})
             else:
                 self._send_json(404, {"error": "Archive not found"})
+
+        def do_GET(self) -> None:
+            import json as _json
+            import urllib.parse
+            from pathlib import Path
+
+            if not self.path.startswith("/api/source"):
+                return super().do_GET()
+
+            parsed = urllib.parse.urlparse(self.path)
+            params = urllib.parse.parse_qs(parsed.query)
+            rel_file = params.get("file", [None])[0]
+
+            if not rel_file:
+                self._send_json(400, {"error": "Missing file parameter"})
+                return
+
+            graph_json_path = directory / "graph-data.json"
+            try:
+                graph_meta = _json.loads(graph_json_path.read_text(encoding="utf-8"))["meta"]
+                repo_root = Path(graph_meta["repo_root"])
+            except Exception:
+                self._send_json(500, {"error": "Could not read graph-data.json"})
+                return
+
+            target = (repo_root / rel_file).resolve()
+            try:
+                target.relative_to(repo_root.resolve())
+            except ValueError:
+                self._send_json(403, {"error": "Path traversal rejected"})
+                return
+
+            if not target.exists():
+                self._send_json(404, {"error": "File not found"})
+                return
+
+            source = target.read_text(encoding="utf-8", errors="replace")
+            self._send_json(200, {"source": source, "file": rel_file})
 
     return ArchiveHandler
 

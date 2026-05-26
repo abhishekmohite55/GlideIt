@@ -6,6 +6,7 @@
 import PropTypes from 'prop-types'
 import React, { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
+import { useToggle } from '../utils/ToggleContext.js'
 
 const TYPE_LABELS = {
   python_function: 'fn',
@@ -23,13 +24,7 @@ const METHOD_COLORS = {
   PATCH:  '#AA00FF',
 }
 
-const NODE_STYLES = {
-  python_function: { background: '#1A1A2E', borderColor: '#1E90FF' },
-  flask_route:     { background: '#1A2E1A', borderColor: '#00C853' },
-  react_component: { background: '#2E1A2E', borderColor: '#AA00FF' },
-  external_call:   { background: '#2A2A2A', borderColor: '#555555' },
-  python_class:    { background: '#2A1A1A', borderColor: '#FF8C00' },
-}
+/* NODE_STYLES removed — per-type backgrounds are now CSS gradients in index.css */
 
 function NodeBadge({ type }) {
   return <span className={`node-badge node-badge--${type}`}>{TYPE_LABELS[type] || type}</span>
@@ -77,11 +72,12 @@ export default function GlideNode({ data }) {
     isMainNode,
   } = data
 
+  const toggleNode = useToggle()
   const expanded = data.expanded ?? localExpanded
 
   const setExpanded = (val) => {
-    if (data.onToggleExpanded) {
-      data.onToggleExpanded(data.id)
+    if (toggleNode) {
+      toggleNode(data.id)
     } else {
       setLocalExpanded(val)
     }
@@ -96,12 +92,10 @@ export default function GlideNode({ data }) {
 
   const returnStr = returns?.type_hint || null
 
-  const handleClick = (e) => {
-    e.stopPropagation()
+  const toggleExpanded = () => {
     setExpanded(prev => !prev)
   }
 
-  const typeStyle = NODE_STYLES[type] || { background: '#161616', borderColor: '#2A2A2A' }
   const isEntryPoint = depth === 0
   const clusterColor = data.clusterColor ?? null
 
@@ -113,25 +107,18 @@ export default function GlideNode({ data }) {
   }
 
   const cardStyle = {
-    background: typeStyle.background,
-    borderColor: typeStyle.borderColor,
-    borderLeftColor: typeStyle.borderColor,
     outline: outlineVal,
     outlineOffset: '3px',
-    borderRadius: '8px',
     boxShadow: isMainNode
       ? '0 0 12px rgba(255, 215, 0, 0.3), 0 0 24px rgba(255, 215, 0, 0.1)'
-      : 'none',
+      : undefined,
   }
 
   return (
     <div
       className={`glideit-node glideit-node--${type} ${expanded ? 'expanded' : ''} ${selected ? 'node-selected' : ''}`}
       style={cardStyle}
-      onClick={handleClick}
-      aria-expanded={expanded}
       aria-label={`${name} — ${type}`}
-      onKeyDown={e => e.key === 'Enter' && setExpanded(p => !p)}
     >
       <Handle type="target" position={Position.Top} className="node-handle" />
 
@@ -184,13 +171,19 @@ export default function GlideNode({ data }) {
         <div className="node-footer">
           {params.length > 0 && <span>{params.length} param{params.length !== 1 ? 's' : ''}</span>}
           {hooks.length > 0 && <span>{hooks.length} hook{hooks.length !== 1 ? 's' : ''}</span>}
-          <span className="node-expand-hint">Click to expand</span>
+          <span className="node-expand-hint" onClick={(e) => { e.stopPropagation(); toggleExpanded(); }}>Click to expand</span>
         </div>
       )}
 
       {/* Expanded detail */}
       {expanded && (
         <div className="node-detail">
+          <div
+            className="node-collapse-hint"
+            onClick={(e) => { e.stopPropagation(); toggleExpanded(); }}
+          >
+            Click to collapse
+          </div>
           <div className="node-detail-separator" />
 
           {/* Docstring */}
@@ -296,7 +289,6 @@ GlideNode.propTypes = {
     selected: PropTypes.bool,
     isMainNode: PropTypes.bool,
     expanded: PropTypes.bool,
-    onToggleExpanded: PropTypes.func,
     id: PropTypes.string,
     clusterColor: PropTypes.string,
   }).isRequired,

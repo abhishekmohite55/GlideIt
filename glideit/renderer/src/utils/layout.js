@@ -8,7 +8,7 @@ const NODE_HEIGHT = 90
 /**
  * Convert graph-data.json nodes → React Flow node format.
  */
-export function toFlowNodes(graphNodes, selectedId = null, clusterColorMap = {}, onToggleExpanded = null) {
+export function toFlowNodes(graphNodes, clusterColorMap = {}) {
   // Build O(1) lookup map for finding main node
   const nodeByName = new Map()
   const nodeById = new Map()
@@ -36,9 +36,7 @@ export function toFlowNodes(graphNodes, selectedId = null, clusterColorMap = {},
     type: 'glideNode',
     data: {
       ...n,
-      selected: n.id === selectedId,
       clusterColor: clusterColorMap[n.id] ?? null,
-      onToggleExpanded,
       isMainNode: n.id === mainNodeId,
     },
     position: { x: 0, y: 0 },
@@ -141,7 +139,7 @@ export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap
       const isPathEdge = highlightedEdgeKeys.has(`${e.source}->${e.target}`);
       if (isPathEdge) {
         style = { ...style, stroke: clusterColor, strokeWidth: 2.5, opacity: 1 };
-        animated = true;
+        animated = false;
         markerEnd = { ...markerEnd, color: clusterColor };
       } else {
         style = { ...style, opacity: 0.05 };
@@ -150,7 +148,7 @@ export function applyFlowStyles(nodes, edges, selectedId = null, clusterColorMap
     } else if (selectedId) {
       if (e.source === selectedId) {
         style = { ...style, stroke: clusterColor, strokeWidth: 2.5, opacity: 1 };
-        animated = true;
+        animated = false;
         markerEnd = { ...markerEnd, color: clusterColor };
       } else {
         style = { ...style, opacity: 0.1 };
