@@ -27,9 +27,10 @@ export function findPathToRoot(nodeId, allNodes, allEdges) {
   // Use BFS to find shortest path to root
   const visited = new Set();
   const queue = [[nodeId]]; // each item is a path array of IDs
+  let head = 0;
 
-  while (queue.length > 0) {
-    const path = queue.shift();
+  while (head < queue.length) {
+    const path = queue[head++];
     const current = path[0];
 
     if (visited.has(current)) continue;

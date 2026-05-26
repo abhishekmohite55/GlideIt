@@ -331,7 +331,8 @@ class JSXExtractor(BaseExtractor):
             return
         body = node.child_by_field_name("body")
         params = node.child_by_field_name("parameters")
-        self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids)
+        source_chunk = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids, source_chunk=source_chunk)
 
     def _handle_variable_decl(
         self,
@@ -354,7 +355,8 @@ class JSXExtractor(BaseExtractor):
                 continue
             params = value_node.child_by_field_name("parameters")
             body = value_node.child_by_field_name("body")
-            self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids)
+            source_chunk = source[value_node.start_byte:value_node.end_byte].decode("utf-8", errors="replace")
+            self._register_component(name, node, params, body, source, rel, nodes, edges, seen_node_ids, source_chunk=source_chunk)
 
     # ──────────────────────────────────────────────────────────────
     # Component registration
@@ -371,6 +373,7 @@ class JSXExtractor(BaseExtractor):
         nodes: list,
         edges: list,
         seen_node_ids: set[str],
+        source_chunk: Optional[str] = None,
     ) -> None:
         line = def_node.start_point[0] + 1
         node_id = self._make_node_id("jsx", rel, name)
@@ -381,7 +384,7 @@ class JSXExtractor(BaseExtractor):
             jsx_children = _collect_jsx_children(body_node, source) if body_node else []
             fetch_calls = _collect_fetch_axios(body_node, source) if body_node else []
 
-            node = self._node(
+            node_kwargs = dict(
                 id=node_id,
                 name=name,
                 type="react_component",
@@ -392,6 +395,9 @@ class JSXExtractor(BaseExtractor):
                 docstring="No description available.",
                 depth=0,
             )
+            if source_chunk is not None:
+                node_kwargs["source_chunk"] = source_chunk
+            node = self._node(**node_kwargs)
             nodes.append(node)
             seen_node_ids.add(node_id)
         else:
@@ -498,6 +504,7 @@ class JSXExtractor(BaseExtractor):
         line = class_node.start_point[0] + 1
         node_id = self._make_node_id("jsx", rel, name)
         jsx_children, lifecycle, fetch_calls = self._collect_class_body(class_node, source)
+        source_chunk = source[class_node.start_byte:class_node.end_byte].decode("utf-8", errors="replace")
 
         if node_id not in seen_node_ids:
             node = self._node(
@@ -509,6 +516,7 @@ class JSXExtractor(BaseExtractor):
                 hooks=lifecycle,
                 docstring="No description available.",
                 depth=0,
+                source_chunk=source_chunk,
             )
             node["lifecycle_methods"] = lifecycle
             nodes.append(node)

@@ -39,7 +39,7 @@ export default [
       'react-hooks/exhaustive-deps': 'warn',
       'no-unused-vars': ['error', {
         argsIgnorePattern: '^_',
-        varsIgnorePattern: '^(React|ReactFlow|Background|Controls|MiniMap|ReactFlowProvider|CanvasToolbar|LegendPanel|BreadcrumbBar|CodeFlowContent|JsxContent|HttpBadge|RouteCard|NodeBadge|HttpMethodBadge|EdgeSample|NodeSample|Key|LogoMark|GitHubIcon|BaseEdge|Handle|Navbar|CodeFlowPage|ApiPage|JsxPage|ErrorBoundary|App)$',
+        varsIgnorePattern: '^(React|ReactFlow|Background|Controls|MiniMap|ReactFlowProvider|CanvasToolbar|LegendPanel|StatsPanel|CodePanel|BreadcrumbBar|CodeFlowContent|JsxContent|HttpBadge|RouteCard|NodeBadge|HttpMethodBadge|EdgeSample|NodeSample|Key|LogoMark|GitHubIcon|BaseEdge|Handle|Navbar|CodeFlowPage|ApiPage|JsxPage|ErrorBoundary|App|TopBar|LeftPanel|FileTree|RightPanel|SecurityHealthTab|CodeSnippetTab|UnusedNodesTab|ApiListView|TreeNode|SevGroup|ShieldIcon|InstallBanner)$',
         caughtErrorsIgnorePattern: '^_',
       }],
     },

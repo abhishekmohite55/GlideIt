@@ -33,6 +33,7 @@ const SHORTCUTS = [
   { keys: ['Enter'],                  action: 'Expand selected node' },
   { keys: ['P'],                      action: 'Pin / unpin node' },
   { keys: ['M'],                      action: 'Toggle minimap' },
+
   { keys: ['L'],                      action: 'Toggle layout direction' },
   { keys: ['Ctrl', 'Shift', 'R'],    action: 'Reset layout' },
   { keys: ['?'],                      action: 'Toggle this panel' },

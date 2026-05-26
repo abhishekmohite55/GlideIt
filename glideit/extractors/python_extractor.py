@@ -514,6 +514,7 @@ class PythonExtractor(BaseExtractor):
         params = _extract_params(params_node, source)
         return_type = _extract_return_type(func_node, source)
         docstring = _extract_docstring(body_node, source)
+        source_chunk = source[func_node.start_byte:func_node.end_byte].decode("utf-8", errors="replace")
 
         # Check for Flask route decorator
         http_method: Optional[str] = None
@@ -550,6 +551,7 @@ class PythonExtractor(BaseExtractor):
                 http_method=http_method,
                 route_path=route_path,
                 depth=0,
+                source_chunk=source_chunk,
             )
             nodes.append(node)
             seen_node_ids.add(node_id)
